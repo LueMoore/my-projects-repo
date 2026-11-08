@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>c = 1 m/s · 光速渲染实验</title>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#04050a;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+    color:#1a1f2b;
+    user-select:none;-webkit-user-select:none;
+  }
+  #gl{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab;}
+  #gl.drag{cursor:grabbing;}
+  #gl.locked{cursor:none;}
+
+  /* 准星：仅在指针锁定（第一人称）时显示 */
+  #crosshair{
+    position:fixed;left:50%;top:50%;
+    width:22px;height:22px;margin:-11px 0 0 -11px;
+    pointer-events:none;opacity:0;z-index:6;
+    transition:opacity .18s ease;
+    filter:drop-shadow(0 0 2px rgba(0,0,0,.85));
+  }
+  #crosshair.on{opacity:.85;}
+
+  .panel{
+    position:fixed;left:22px;top:22px;width:272px;
+    background:rgba(255,255,255,.86);
+    backdrop-filter:blur(20px) saturate(1.6);
+    -webkit-backdrop-filter:blur(20px) saturate(1.6);
+    border:1px solid rgba(255,255,255,.7);
+    border-radius:18px;
+    padding:18px 18px 16px;
+    box-shadow:0 18px 50px -12px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.18);
+    user-select:none;
+    transition:opacity .28s ease;
+    max-height:calc(100vh - 44px);
+    overflow-y:auto;
+    overscroll-behavior:contain;
+  }
+  .eyebrow{
+    font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:#7a8496;font-weight:650;margin-bottom:9px;
+  }
+  .cbig{
+    display:flex;align-items:baseline;gap:6px;margin-bottom:2px;
+    font-variant-numeric:tabular-nums;
+  }
+  .cbig .v{
+    font-size:38px;font-weight:250;letter-spacing:-.03em;line-height:1;
+    color:#0d1220;
+  }
+  .cbig .u{font-size:13px;color:#7a8496;font-weight:500;}
+  .ctag{
+    font-size:11px;color:#98a1b2;margin-bottom:14px;
+    font-variant-numeric:tabular-nums;
+  }
+  .ctag b{color:#e0483d;font-weight:600;}
+
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;
+    width:100%;height:4px;border-radius:99px;
+    background:linear-gradient(90deg,#c9d2e0,#c9d2e0);
+    outline:none;margin:0 0 6px;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;
+    width:18px;height:18px;border-radius:50%;
+    background:#fff;border:1.5px solid #b9c3d4;
+    box-shadow:0 2px 6px rgba(0,0,0,.22);
+    cursor:pointer;transition:transform .12s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.12);}
+  input[type=range]::-moz-range-thumb{
+    width:16px;height:16px;border-radius:50%;
+    background:#fff;border:1.5px solid #b9c3d4;
+    box-shadow:0 2px 6px rgba(0,0,0,.22);cursor:pointer;
+  }
+  .scalebar{display:flex;justify-content:space-between;font-size:9.5px;color:#a8b1c0;margin-bottom:15px;font-variant-numeric:tabular-nums;}
+
+  .presets{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:13px;}
+  .presets button{
+    font:inherit;font-size:11px;font-weight:600;
+    padding:6px 0;border-radius:8px;cursor:pointer;
+    border:1px solid #dde3ec;background:#f6f8fb;color:#5c6678;
+    transition:all .14s;
+  }
+  .presets button:hover{background:#eceff5;border-color:#cfd7e3;}
+  .presets button.on{background:#1a2130;border-color:#1a2130;color:#fff;}
+
+  /* ---- 物体运动速度 ---- */
+  .spdsec{margin-bottom:13px;}
+  .spdsec .ghead{margin-bottom:6px;}
+  .spdsec .ghead span:last-child{
+    color:#4a5468;font-weight:700;font-variant-numeric:tabular-nums;
+    letter-spacing:0;font-size:10.5px;
+  }
+
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px;}
+  .row.three{grid-template-columns:1fr 1fr 1fr;}
+  .row.one{grid-template-columns:1fr;}
+  .row button{
+    font:inherit;font-size:11.5px;font-weight:600;
+    padding:8px 0;border-radius:9px;cursor:pointer;
+    border:1px solid #dde3ec;background:#f6f8fb;color:#4a5468;
+    transition:all .14s;
+  }
+  .row button:hover{background:#eceff5;}
+  .row button.on{background:#0d1220;border-color:#0d1220;color:#fff;}
+
+  .hint{
+    margin-top:13px;padding-top:12px;
+    border-top:1px solid #e8ecf2;
+    font-size:10.5px;line-height:1.75;color:#8d97a8;
+  }
+  .hint b{color:#5c6678;font-weight:600;}
+
+  /* ---- 虚影区域 ---- */
+  .ghostsec{
+    margin-top:11px;padding-top:11px;
+    border-top:1px solid #e8ecf2;
+  }
+  .ghead{
+    display:flex;justify-content:space-between;align-items:center;
+    font-size:10px;font-weight:650;letter-spacing:.09em;
+    color:#8d97a8;margin-bottom:7px;
+  }
+  .mini{
+    font:inherit;font-size:9.5px;font-weight:600;
+    padding:2px 8px;border-radius:6px;cursor:pointer;
+    border:1px solid #e2e8f1;background:#f7f9fc;color:#8d97a8;
+    transition:all .14s;
+  }
+  .mini:hover{background:#eceff5;color:#5c6678;}
+  .addbtn{
+    width:100%;font:inherit;font-size:11px;font-weight:600;
+    padding:7px 0;border-radius:8px;cursor:pointer;
+    border:1px dashed #ccd6e5;background:transparent;color:#5c6678;
+    transition:all .14s;
+  }
+  .addbtn:hover{background:#f2f5fa;border-color:#aebccf;}
+  .addbtn:active{transform:scale(.985);}
+  .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;}
+  .chips:empty{display:none;}
+  .chip{
+    display:inline-flex;align-items:center;gap:5px;
+    font-size:10px;padding:3px 8px;border-radius:6px;
+    background:#edf1f8;color:#546074;cursor:pointer;
+    font-variant-numeric:tabular-nums;
+    transition:all .14s;
+  }
+  .chip:hover{background:#e1e8f3;}
+  .chip b{font-weight:700;color:#a8b1c0;font-size:11px;line-height:1;}
+  .chip:hover b{color:#d94a3d;}
+
+  /* ---- 球体开关 ---- */
+  .ballsec{
+    margin-top:11px;padding-top:11px;
+    border-top:1px solid #e8ecf2;
+  }
+  .ballrow{display:flex;gap:4px;}
+  .bl{
+    flex:1;text-align:center;
+    font-size:10.5px;font-weight:700;
+    padding:5px 0;border-radius:6px;cursor:pointer;
+    font-variant-numeric:tabular-nums;
+    transition:opacity .16s ease, background .16s ease;
+  }
+  .bl.off{opacity:.20;text-decoration:line-through;}
+  kbd{
+    display:inline-block;padding:1px 5px;border-radius:4px;
+    background:#eef1f6;border:1px solid #dde3ec;
+    font-size:9.5px;font-family:inherit;color:#5c6678;
+  }
+
+  #mapWrap{
+    position:fixed;right:22px;bottom:22px;
+    width:224px;height:224px;
+    border-radius:16px;overflow:hidden;
+    background:rgba(6,8,15,.82);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    border:1px solid rgba(255,255,255,.09);
+    box-shadow:0 18px 50px -12px rgba(0,0,0,.6);
+  }
+  #map{width:100%;height:100%;display:block;}
+
+  #stats{
+    position:fixed;right:22px;top:22px;
+    font-size:10px;letter-spacing:.05em;color:rgba(255,255,255,.32);
+    font-variant-numeric:tabular-nums;text-align:right;
+    pointer-events:none;line-height:1.6;
+  }
+
+  /* ---- 独立显隐：P 面板 / M 地图 / H 全部 ---- */
+  #mapWrap,#stats{transition:opacity .28s ease;}
+  body.hide-panel .panel,
+  body.hide-panel #stats,
+  body.hide-panel #crosshair,
+  body.hide-map #mapWrap{
+    opacity:0;
+    pointer-events:none;
+  }
+
+  #uiToast{
+    position:fixed;left:50%;bottom:46px;
+    transform:translateX(-50%) translateY(6px);
+    font-size:11.5px;color:rgba(255,255,255,.78);
+    background:rgba(0,0,0,.45);
+    -webkit-backdrop-filter:blur(10px);
+    backdrop-filter:blur(10px);
+    padding:7px 15px;border-radius:99px;
+    letter-spacing:.02em;
+    opacity:0;pointer-events:none;z-index:9;
+    transition:opacity .3s ease, transform .3s ease;
+  }
+  #uiToast b{color:#fff;font-weight:700;}
+  #uiToast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  @media (max-width:820px){
+    .panel{width:230px;padding:14px;left:12px;top:12px;}
+    .cbig .v{font-size:30px;}
+    #mapWrap{width:150px;height:150px;right:12px;bottom:12px;}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="gl"></canvas>
+
+<svg id="crosshair" viewBox="0 0 24 24" aria-hidden="true">
+  <circle cx="12" cy="12" r="1.7" fill="#fff"/>
+  <path d="M12 2.5v5.2M12 16.3v5.2M2.5 12h5.2M16.3 12h5.2"
+        stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".5"/>
+</svg>
+
+<div class="panel">
+  <div class="eyebrow">Speed of Light</div>
+  <div class="cbig"><span class="v" id="cval">1.00</span><span class="u">m/s</span></div>
+  <div class="ctag" id="ctag">5 米外的画面，是 <b>5.0 秒</b>前发出的光</div>
+
+  <input type="range" id="cslide" min="0" max="1000" value="395" />
+  <div class="scalebar"><span>0.02</span><span>10</span><span>400 m/s</span></div>
+
+  <div class="presets">
+    <button data-c="0.05">0.05</button>
+    <button data-c="1" class="on">1</button>
+    <button data-c="5">5</button>
+    <button data-c="1e8">∞</button>
+  </div>
+
+  <div class="spdsec">
+    <div class="ghead"><span>物体运动速度</span><span id="spdval">1.00×</span></div>
+    <input type="range" id="spd" min="0" max="1000" value="322" />
+  </div>
+
+  <div class="row">
+    <button id="bDelay">延迟着色</button>
+    <button id="bPause">暂停</button>
+  </div>
+
+  <div class="ghostsec">
+    <div class="ghead">
+      <span>虚影 · 手动标记</span>
+      <button id="bGhostClear" class="mini">清空</button>
+    </div>
+    <button id="bGhostAdd" class="addbtn">＋ 记录当前光速的位置</button>
+    <div id="ghostList" class="chips"></div>
+  </div>
+
+  <div class="ballsec">
+    <div class="ghead"><span>球体 · 1–6 切换</span></div>
+    <div class="ballrow" id="ballRow"></div>
+  </div>
+
+  <div class="hint">
+    <b>点击画面</b>进入第一人称 · <b>ESC</b> 退出<br>
+    <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动 · <kbd>Q</kbd><kbd>E</kbd> 升降 · <kbd>[</kbd><kbd>]</kbd> 光速 · <kbd>G</kbd> 虚影<br>
+    <kbd>P</kbd> 面板 · <kbd>M</kbd> 地图 · <kbd>H</kbd> 全部 · <kbd>1</kbd>–<kbd>6</kbd> 球体
+  </div>
+</div>
+
+<div id="mapWrap"><canvas id="map"></canvas></div>
+<div id="stats"></div>
+<div id="uiToast"></div>
+
+<script id="vs" type="x-shader/x-vertex">
+attribute vec2 aPos;
+void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }
+</script>
+
+<script id="fs" type="x-shader/x-fragment">
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+#define NS 6
+#define NG 6
+#define MAXDIST 95.0
+
+uniform vec2  uRes;
+uniform float uTime;
+uniform float uC;
+uniform vec3  uCamPos;
+uniform vec3  uCamFwd;
+uniform vec3  uCamRight;
+uniform vec3  uCamUp;
+uniform float uTanHalf;
+uniform vec4  uOrbC[NS];    // 轨道中心 xyz, 轨道半径 w
+uniform vec4  uOrbP[NS];    // 角速度, 相位, 球半径, 上下浮动幅度
+uniform vec3  uOrbCol[NS];
+uniform vec3  uLightC;
+uniform float uLightR;
+uniform float uLightW;
+uniform float uLightH;
+uniform float uMode;        // 0 = 正常, 1 = 延迟着色
+uniform float uGhostCount;  // 用户手动添加的虚影数量
+uniform float uGhostC[NG];  // 每个虚影对应的光速值
+uniform float uBallVis[NS]; // 每个球体的显隐（1 = 可见）
+uniform float uBallSpeed;   // 物体运动速度倍率
+
+// 射线与静止球求交（解析解，虚影用这个，比步进快得多）
+float raySphere(vec3 ro, vec3 rd, vec3 ce, float ra){
+  vec3 oc = ro - ce;
+  float b = dot(oc, rd);
+  float c = dot(oc, oc) - ra * ra;
+  float h = b * b - c;
+  if(h < 0.0) return -1.0;
+  h = sqrt(h);
+  float t = -b - h;
+  if(t < 0.0) t = -b + h;
+  return t > 0.0 ? t : -1.0;
+}
+
+// 球 i 在 tau 时刻的位置
+#define BP(i,T) vec3( \
+  uOrbC[i].x + uOrbC[i].w * cos(uOrbP[i].x*(T)*uBallSpeed + uOrbP[i].y), \
+  uOrbC[i].y + uOrbP[i].w * sin(uOrbP[i].x*(T)*uBallSpeed*1.7 + uOrbP[i].y*1.3), \
+  uOrbC[i].z + uOrbC[i].w * sin(uOrbP[i].x*(T)*uBallSpeed + uOrbP[i].y) )
+
+vec3 lightPos(float tau){
+  float a = uLightW * tau;
+  return vec3(uLightC.x + uLightR*cos(a), uLightH, uLightC.z + uLightR*sin(a));
+}
+
+vec3 delayRamp(float d){
+  float x = clamp(d / 26.0, 0.0, 1.0);
+  vec3 a = vec3(0.06,0.16,0.55);
+  vec3 b = vec3(0.00,0.72,0.92);
+  vec3 c = vec3(0.25,1.00,0.38);
+  vec3 e = vec3(1.00,0.86,0.12);
+  vec3 f = vec3(0.96,0.14,0.22);
+  if(x < 0.25) return mix(a,b,x/0.25);
+  if(x < 0.50) return mix(b,c,(x-0.25)/0.25);
+  if(x < 0.75) return mix(c,e,(x-0.50)/0.25);
+  return mix(e,f,(x-0.75)/0.25);
+}
+
+vec3 skyCol(vec3 rd){
+  float h = clamp(rd.y, -0.25, 1.0);
+  vec3 hor = vec3(0.040,0.052,0.095);
+  vec3 top = vec3(0.008,0.012,0.032);
+  vec3 col = mix(hor, top, smoothstep(0.0, 0.62, h));
+
+  // 星点
+  vec3 cell = floor(rd * 300.0);
+  float hs = fract(sin(dot(cell, vec3(12.9898,78.233,45.164))) * 43758.5453);
+  col += vec3(0.55,0.68,0.95) * step(0.9988, hs) * smoothstep(0.02, 0.28, h) * 0.85;
+
+  // 地平线余晖
+  col += vec3(0.09,0.07,0.12) * exp(-abs(rd.y) * 11.0) * 0.7;
+  return col;
+}
+
+float softShadow(vec3 P, vec3 L, float tHit, float maxDist){
+  // 球速越快，沿光线的 SDF 变化越剧烈，步长要相应收窄，否则会穿透
+  float lipK = clamp(1.0 + (uBallSpeed - 1.0) * 0.9, 0.6, 3.5);
+  float res = 1.0;
+  float s = 0.07;
+  for(int k = 0; k < 18; k++){
+    vec3 pp = P + L * s;
+    float tau = tHit - s / uC;   // 光经过该点的时刻
+    float d = 1e9;
+    for(int i = 0; i < NS; i++){
+      if(uBallVis[i] < 0.5) continue;
+      vec3 bp = BP(i, tau);
+      d = min(d, length(pp - bp) - uOrbP[i].z);
+    }
+    if(d < 0.006) return 0.0;
+    res = min(res, 7.0 * d / s);
+    s += clamp(d / lipK, 0.04, 0.7);
+    if(s > maxDist) break;
+  }
+  return clamp(res, 0.0, 1.0);
+}
+
+vec3 shade(vec3 P, vec3 N, vec3 base, float tHit, float specAmt){
+  // 求解「光是什么时候离开光源的」
+  float tauL = tHit;
+  vec3 LP;
+  float dL;
+  for(int k = 0; k < 5; k++){
+    LP = lightPos(tauL);
+    dL = length(LP - P);
+    tauL = tHit - dL / uC;
+  }
+  LP = lightPos(tauL);
+  dL = length(LP - P);
+  vec3 L = (LP - P) / max(dL, 1e-4);
+
+  float ndl = max(dot(N, L), 0.0);
+  float atten = 4.2 / (1.0 + dL * dL * 0.028);
+
+  float sh = 1.0;
+  if(ndl > 0.001) sh = softShadow(P + N * 0.012, L, tHit, dL);
+
+  vec3 lightCol = vec3(1.0, 0.94, 0.82) * atten * sh * ndl;
+
+  vec3 amb = mix(vec3(0.016,0.021,0.042), vec3(0.055,0.072,0.135), 0.5 + 0.5*N.y);
+  vec3 col = base * (amb + lightCol);
+
+  vec3 V = normalize(uCamPos - P);
+  vec3 H = normalize(L + V);
+  float sp = pow(max(dot(N, H), 0.0), 52.0) * sh * atten * 0.55 * specAmt;
+  col += vec3(1.0, 0.95, 0.86) * sp;
+
+  return col;
+}
+
+void main(){
+  vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
+  vec3 rd = normalize(uCamFwd + uTanHalf * (uv.x * uCamRight + uv.y * uCamUp));
+  vec3 ro = uCamPos;
+  float t0 = uTime;
+
+  // ---- 地面（静止，无延迟） ----
+  float sGround = -1.0;
+  if(rd.y < -1e-4){
+    float sg = -ro.y / rd.y;
+    if(sg > 0.05) sGround = sg;
+  }
+
+  // ---- 运动球体：沿光线回溯，球的位置随光的传播时间改变 ----
+  float bestS = (sGround > 0.0) ? sGround : MAXDIST;
+  int   bestI = -1;
+  vec3  bestCol = vec3(0.0);
+  vec3  bestCtr = vec3(0.0);
+
+  // 球速越快，SDF 沿光线的 Lipschitz 常数越大（≈ 1 + v/c），
+  // 固定的 0.5 步长会直接跨过球体，造成表面空洞、法线错位
+  float lipK = clamp(1.0 + (uBallSpeed - 1.0) * 0.9, 0.6, 3.5);
+
+  for(int i = 0; i < NS; i++){
+    if(uBallVis[i] < 0.5) continue;
+    float s = 0.03;
+    bool hit = false;
+    for(int k = 0; k < 36; k++){
+      vec3 pp = ro + rd * s;
+      float tau = t0 - s / uC;
+      vec3 bp = BP(i, tau);
+      float d = length(pp - bp) - uOrbP[i].z;
+      if(d < 0.006){ hit = true; break; }
+      s += max(d * 0.50 / lipK, 0.015);
+      if(s > bestS) break;
+    }
+    if(hit && s < bestS){
+      // 用解析解校正步进结果：球体高速运动时步进值会有残差，
+      // 不修正的话法线会抖，表面出现脏斑
+      vec3 c0 = BP(i, t0 - s / uC);
+      float s2 = raySphere(ro, rd, c0, uOrbP[i].z);
+      if(s2 > 0.0 && s2 < bestS) s = s2;
+
+      bestS = s;
+      bestI = i;
+      bestCol = uOrbCol[i];
+      bestCtr = BP(i, t0 - s / uC);
+    }
+  }
+
+  vec3 col;
+  float sFinal = bestS;
+  float tHit = t0 - sFinal / uC;
+
+  if(bestI >= 0){
+    vec3 P = ro + rd * sFinal;
+    vec3 N = normalize(P - bestCtr);
+    col = shade(P, N, bestCol, tHit, 1.0);
+
+    // 边缘辉光 + 自发光
+    float fres = pow(1.0 - max(dot(N, -rd), 0.0), 3.2);
+    col += bestCol * fres * 0.75;
+    col += bestCol * 0.10;
+  }
+  else if(sGround > 0.0){
+    vec3 P = ro + rd * sFinal;
+    vec3 N = vec3(0.0, 1.0, 0.0);
+
+    float chk = mod(floor(P.x) + floor(P.z), 2.0);
+    vec3 base = mix(vec3(0.105,0.118,0.150), vec3(0.185,0.205,0.245), chk);
+
+    // 细网格
+    vec2 gg = abs(fract(P.xz) - 0.5);
+    base += vec3(0.045,0.055,0.080) * smoothstep(0.455, 0.5, max(gg.x, gg.y));
+
+    // 每 5 米一圈，标记「光的年龄」
+    float rr = abs(fract(length(P.xz) / 5.0 + 0.5) - 0.5) * 5.0;
+    base += vec3(0.090,0.135,0.210) * (1.0 - smoothstep(0.0, 0.07, rr));
+
+    col = shade(P, N, base, tHit, 0.35);
+
+    // 大气雾
+    float fog = 1.0 - exp(-sFinal * 0.013);
+    col = mix(col, skyCol(rd), fog * 0.85);
+  }
+  else{
+    col = skyCol(rd);
+    // 光源光晕
+    vec3 lp = lightPos(uTime);
+    vec3 ld = normalize(lp - ro);
+    float gl = pow(max(dot(rd, ld), 0.0), 420.0);
+    col += vec3(1.0, 0.90, 0.72) * gl * 2.6;
+  }
+
+  // ---- 虚影：用户手动标记的「某个光速下球会在哪」----
+  // 位置是固定时刻的快照，用解析求交，几乎不花代价
+  if(uGhostCount > 0.5){
+    for(int i = 0; i < NS; i++){
+      if(uBallVis[i] < 0.5) continue;
+      vec3 pNow = BP(i, t0);
+      float dNow = length(pNow - ro);
+
+      for(int g = 0; g < NG; g++){
+        if(float(g) >= uGhostCount) break;
+
+        float ck = max(uGhostC[g], 0.05);
+        if(abs(ck - uC) < max(ck, 1.0) * 0.01) continue;   // 与当前光速重合，无需重复画
+
+        float tk = t0 - dNow / ck;
+        vec3 gp = BP(i, tk);
+        tk = t0 - length(gp - ro) / ck;   // 再迭代一次，球速快时位置更准
+        gp = BP(i, tk);
+
+        float gs = raySphere(ro, rd, gp, uOrbP[i].z);
+        if(gs > 0.0 && gs < bestS){
+          vec3 gn = normalize(ro + rd * gs - gp);
+          float gf = pow(1.0 - abs(dot(gn, rd)), 2.2);     // 边缘亮 → 玻璃球轮廓
+          col += uOrbCol[i] * (0.03 + gf * 0.55) * 0.42;
+        }
+      }
+    }
+  }
+
+  // ---- 延迟着色模式 ----
+  if(uMode > 0.5){
+    float dl = sFinal / uC;
+    col = mix(col, delayRamp(dl), 0.72);
+  }
+
+  // ---- 色调映射 ----
+  col = 1.0 - exp(-col * 1.55);
+
+  // 暗角
+  vec2 vv = gl_FragCoord.xy / uRes;
+  float vig = 1.0 - smoothstep(0.30, 1.15, length(vv - 0.5));
+  col *= 0.62 + 0.38 * vig;
+
+  gl_FragColor = vec4(col, 1.0);
+}
+</script>
+
+<script>
+(function(){
+  "use strict";
+
+  // ============================================================
+  //  场景定义
+  // ============================================================
+  const SPHERES = [
+    { cx: 0.0, cy: 1.15, cz: 0.0, R: 4.2, w:  0.160, ph: 0.00, r: 0.72, bob: 0.34, col:[0.15,0.85,1.00] },
+    { cx: 0.0, cy: 2.05, cz: 0.0, R: 6.4, w: -0.100, ph: 1.70, r: 0.92, bob: 0.28, col:[1.00,0.30,0.62] },
+    { cx: 1.4, cy: 0.92, cz:-1.1, R: 3.0, w:  0.240, ph: 3.10, r: 0.55, bob: 0.22, col:[1.00,0.80,0.18] },
+    { cx:-1.9, cy: 1.62, cz: 1.5, R: 5.4, w:  0.120, ph: 4.40, r: 0.76, bob: 0.40, col:[0.35,1.00,0.50] },
+    { cx: 2.3, cy: 2.62, cz:-2.0, R: 7.6, w: -0.080, ph: 5.60, r: 1.02, bob: 0.30, col:[0.52,0.56,1.00] },
+    { cx:-1.0, cy: 1.05, cz: 2.4, R: 5.8, w:  0.140, ph: 2.20, r: 0.62, bob: 0.26, col:[1.00,0.45,0.16] }
+  ];
+
+  const LIGHT = { cx: 0.0, cz: 0.0, R: 6.0, w: 0.22, h: 9.0 };
+
+  // 与着色器完全一致的球体位置函数
+  function ballPos(i, tau){
+    const s = SPHERES[i];
+    const a = s.w * state.ballSpeed * tau;
+    return [
+      s.cx + s.R * Math.cos(a + s.ph),
+      s.cy + s.bob * Math.sin(a * 1.7 + s.ph * 1.3),
+      s.cz + s.R * Math.sin(a + s.ph)
+    ];
+  }
+
+  // ============================================================
+  //  WebGL 初始化
+  // ============================================================
+  const canvas = document.getElementById("gl");
+  const gl = canvas.getContext("webgl", {
+    antialias: false, alpha: false, depth: false, stencil: false,
+    preserveDrawingBuffer: false, powerPreference: "high-performance"
+  });
+
+  if(!gl){
+    document.body.innerHTML =
+      '<div style="color:#fff;font:15px/1.7 sans-serif;padding:60px;max-width:520px">' +
+      '这个演示需要 WebGL。请用较新的 Chrome / Edge / Safari 打开。</div>';
+    return;
+  }
+
+  function showFatal(title, detail){
+    const d = document.createElement("div");
+    d.style.cssText = "position:fixed;inset:0;z-index:99;background:#0a0d14;color:#e8edf5;" +
+      "font:14px/1.8 -apple-system,sans-serif;padding:56px;overflow:auto;white-space:pre-wrap";
+    d.textContent = title + "\n\n" + detail;
+    document.body.appendChild(d);
+  }
+
+  function compile(type, src){
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){
+      const log = gl.getShaderInfoLog(sh);
+      console.error(log);
+      showFatal("着色器编译失败", log);
+      throw new Error(log);
+    }
+    return sh;
+  }
+
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(gl.VERTEX_SHADER, document.getElementById("vs").textContent));
+  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, document.getElementById("fs").textContent));
+  gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog, gl.LINK_STATUS)){
+    const log = gl.getProgramInfoLog(prog);
+    console.error(log);
+    showFatal("着色器链接失败", log);
+  }
+  gl.useProgram(prog);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  const aPos = gl.getAttribLocation(prog, "aPos");
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  const U = {};
+  ["uRes","uTime","uC","uCamPos","uCamFwd","uCamRight","uCamUp","uTanHalf",
+   "uLightC","uLightR","uLightW","uLightH","uMode","uGhostCount","uBallSpeed"].forEach(function(n){
+    U[n] = gl.getUniformLocation(prog, n);
+  });
+  U.uOrbC   = gl.getUniformLocation(prog, "uOrbC[0]");
+  U.uOrbP   = gl.getUniformLocation(prog, "uOrbP[0]");
+  U.uOrbCol = gl.getUniformLocation(prog, "uOrbCol[0]");
+  U.uGhostC  = gl.getUniformLocation(prog, "uGhostC[0]");
+  U.uBallVis = gl.getUniformLocation(prog, "uBallVis[0]");
+
+  const GHOST_MAX = 6;
+  const ghostBuf = new Float32Array(GHOST_MAX);
+  const visBuf   = new Float32Array(6);
+
+  // 打包 uniform 数据
+  const orbC = new Float32Array(SPHERES.length * 4);
+  const orbP = new Float32Array(SPHERES.length * 4);
+  const orbCol = new Float32Array(SPHERES.length * 3);
+  SPHERES.forEach(function(s, i){
+    orbC[i*4+0] = s.cx; orbC[i*4+1] = s.cy; orbC[i*4+2] = s.cz; orbC[i*4+3] = s.R;
+    orbP[i*4+0] = s.w;  orbP[i*4+1] = s.ph; orbP[i*4+2] = s.r;  orbP[i*4+3] = s.bob;
+    orbCol[i*3+0] = s.col[0]; orbCol[i*3+1] = s.col[1]; orbCol[i*3+2] = s.col[2];
+  });
+
+  // ============================================================
+  //  状态
+  // ============================================================
+  const state = {
+    simTime: 0,
+    paused: false,
+    delayMode: false,
+    ghosts: [],          // 用户手动标记的光速值
+    ballVis: [true, true, true, true, true, true],
+    ballSpeed: 1.0,      // 物体运动速度倍率
+    c: 1.0,
+    scale: 0.8
+  };
+
+  const cam = {
+    pos: [0.0, 1.68, 0.0],
+    yaw: 0.0,
+    pitch: -0.06,
+    // 平滑目标值（拖拽写目标，实际值每帧追上去，去掉抖动）
+    tYaw: 0.0,
+    tPitch: -0.06,
+    fov: 72,
+    tFov: 72
+  };
+
+  const CAM_HOME = { pos: [0.0, 1.68, 0.0], yaw: 0.0, pitch: -0.06, fov: 72 };
+  const CAM_LIMIT = 45.0;        // 水平活动半径
+  const CAM_Y_MIN = 0.35, CAM_Y_MAX = 38.0;
+  // 仰角上限：正好 ±90°，可以完全垂直向下俯视
+  const PITCH_LIMIT = Math.PI / 2;
+
+  const C_MIN = 0.02, C_MAX = 400.0;
+
+  function sliderToC(v){ return C_MIN * Math.pow(C_MAX / C_MIN, v); }
+  function cToSlider(c){ return Math.log(c / C_MIN) / Math.log(C_MAX / C_MIN); }
+
+  // ============================================================
+  //  UI
+  // ============================================================
+  const elCval  = document.getElementById("cval");
+  const elCtag  = document.getElementById("ctag");
+  const elSlide = document.getElementById("cslide");
+  const elStats = document.getElementById("stats");
+  const elDelay = document.getElementById("bDelay");
+  const elPause = document.getElementById("bPause");
+  const elGhostAdd   = document.getElementById("bGhostAdd");
+  const elGhostList  = document.getElementById("ghostList");
+  const elGhostClear = document.getElementById("bGhostClear");
+  const elToast      = document.getElementById("uiToast");
+  const presetBtns = Array.prototype.slice.call(document.querySelectorAll(".presets button"));
+
+  function fmtC(c){
+    if(c >= 1e6) return "∞";
+    if(c >= 100) return c.toFixed(0);
+    if(c >= 10)  return c.toFixed(1);
+    return c.toFixed(2);
+  }
+
+  function syncUI(){
+    elCval.textContent = fmtC(state.c);
+    const sec = 5 / state.c;
+    if(sec < 0.05){
+      elCtag.innerHTML = "光几乎是瞬间到达的，这就是日常世界";
+    }else if(sec >= 60){
+      elCtag.innerHTML = "5 米外的画面，是 <b>" + (sec / 60).toFixed(1) + " 分钟</b>前发出的光";
+    }else{
+      const txt = sec >= 100 ? sec.toFixed(0) : sec.toFixed(1);
+      elCtag.innerHTML = "5 米外的画面，是 <b>" + txt + " 秒</b>前发出的光";
+    }
+    presetBtns.forEach(function(b){
+      const v = parseFloat(b.dataset.c);
+      b.classList.toggle("on", Math.abs(v - state.c) / Math.max(v, 0.02) < 0.06);
+    });
+  }
+
+  function setC(c, syncSlider){
+    state.c = Math.max(0.05, c);
+    if(syncSlider !== false){
+      elSlide.value = Math.round(Math.max(0, Math.min(1, cToSlider(state.c))) * 1000);
+    }
+    syncUI();
+  }
+
+  elSlide.addEventListener("input", function(){
+    setC(sliderToC(elSlide.value / 1000), false);
+  });
+
+  // ---- 物体运动速度 ----
+  const elSpd = document.getElementById("spd");
+  const elSpdVal = document.getElementById("spdval");
+  const SPD_MIN = 0.05, SPD_MAX = 3.0;
+
+  elSpd.addEventListener("input", function(){
+    state.ballSpeed = SPD_MIN + (elSpd.value / 1000) * (SPD_MAX - SPD_MIN);
+    elSpdVal.textContent = state.ballSpeed.toFixed(2) + "×";
+  });
+
+  presetBtns.forEach(function(b){
+    b.addEventListener("click", function(){ setC(parseFloat(b.dataset.c)); });
+  });
+
+  elDelay.addEventListener("click", function(){
+    state.delayMode = !state.delayMode;
+    elDelay.classList.toggle("on", state.delayMode);
+  });
+
+  // ---- 虚影：手动记录「当前光速下球在哪」 ----
+  function renderGhosts(){
+    elGhostList.innerHTML = "";
+    state.ghosts.forEach(function(v, i){
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.title = "点击移除这个虚影";
+
+      const label = document.createElement("span");
+      label.textContent = "c=" + fmtC(v);
+
+      const x = document.createElement("b");
+      x.textContent = "×";
+
+      chip.appendChild(label);
+      chip.appendChild(x);
+      chip.addEventListener("click", function(){
+        state.ghosts.splice(i, 1);
+        renderGhosts();
+      });
+
+      elGhostList.appendChild(chip);
+    });
+    elGhostClear.style.visibility = state.ghosts.length ? "visible" : "hidden";
+  }
+
+  function addGhost(){
+    const v = state.c;
+    for(let i = 0; i < state.ghosts.length; i++){
+      if(Math.abs(state.ghosts[i] - v) / Math.max(v, 0.5) < 0.02) return;   // 已有相近档位
+    }
+    if(state.ghosts.length >= GHOST_MAX) state.ghosts.shift();
+    state.ghosts.push(v);
+    renderGhosts();
+  }
+
+  elGhostAdd.addEventListener("click", addGhost);
+  elGhostClear.addEventListener("click", function(){
+    state.ghosts.length = 0;
+    renderGhosts();
+  });
+  renderGhosts();
+
+  // ---- 球体显隐（1-6）----
+  const elBallRow = document.getElementById("ballRow");
+  const ballChips = [];
+
+  function toggleBall(i){
+    if(i < 0 || i >= SPHERES.length) return;
+    state.ballVis[i] = !state.ballVis[i];
+    ballChips[i].classList.toggle("off", !state.ballVis[i]);
+  }
+
+  SPHERES.forEach(function(s, i){
+    const el = document.createElement("span");
+    el.className = "bl";
+    el.textContent = String(i + 1);
+
+    const rgb = s.col.map(function(v){ return Math.round(v * 255); });
+    el.style.background = "rgba(" + rgb.join(",") + ",.16)";
+    el.style.color = "rgb(" + rgb.map(function(v){ return Math.round(v * 0.66); }).join(",") + ")";
+    el.title = "切换第 " + (i + 1) + " 个球体";
+    el.addEventListener("click", function(){ toggleBall(i); });
+
+    elBallRow.appendChild(el);
+    ballChips.push(el);
+  });
+
+  elPause.addEventListener("click", function(){
+    state.paused = !state.paused;
+    elPause.classList.toggle("on", state.paused);
+    elPause.textContent = state.paused ? "继续" : "暂停";
+  });
+
+  // ============================================================
+  //  相机控制
+  // ============================================================
+  let dragging = false, lastX = 0, lastY = 0, activePointer = null;
+  let locked = false, movedAmt = 0;
+  const keys = Object.create(null);
+
+  const elCross = document.getElementById("crosshair");
+
+  function resetView(){
+    cam.pos[0] = CAM_HOME.pos[0];
+    cam.pos[1] = CAM_HOME.pos[1];
+    cam.pos[2] = CAM_HOME.pos[2];
+    cam.tYaw = cam.yaw = CAM_HOME.yaw;
+    cam.tPitch = cam.pitch = CAM_HOME.pitch;
+    cam.tFov = cam.fov = CAM_HOME.fov;
+  }
+
+  // ============================================================
+  //  界面显隐：P 面板 / M 地图 / H 全部
+  // ============================================================
+  let hidePanel = false, hideMap = false;
+  let toastTimer = 0;
+
+  function showToast(msg){
+    elToast.innerHTML = msg;
+    elToast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ elToast.classList.remove("show"); }, 2200);
+  }
+
+  function applyUIVis(){
+    document.body.classList.toggle("hide-panel", hidePanel);
+    document.body.classList.toggle("hide-map", hideMap);
+  }
+
+  function togglePanel(){
+    hidePanel = !hidePanel;
+    applyUIVis();
+    if(hidePanel) showToast("按 <b>P</b> 显示面板");
+  }
+
+  function toggleMap(){
+    hideMap = !hideMap;
+    applyUIVis();
+    if(hideMap) showToast("按 <b>M</b> 显示地图");
+  }
+
+  function toggleAll(){
+    const next = !(hidePanel && hideMap);
+    hidePanel = next;
+    hideMap = next;
+    applyUIVis();
+    if(next) showToast("按 <b>H</b> 显示界面");
+  }
+
+  // ============================================================
+  //  指针锁定（第一人称）
+  // ============================================================
+  function applyLockState(){
+    locked = (document.pointerLockElement === canvas);
+    elCross.classList.toggle("on", locked);
+    canvas.classList.toggle("locked", locked);
+    if(locked){ dragging = false; activePointer = null; canvas.classList.remove("drag"); }
+  }
+
+  document.addEventListener("pointerlockchange", applyLockState);
+
+  document.addEventListener("pointerlockerror", function(){
+    showToast("此环境不支持指针锁定，拖动画面即可环视");
+  });
+
+  // 轻点（而非拖拽）进入第一人称
+  canvas.addEventListener("click", function(){
+    if(locked) return;
+    if(movedAmt > 8) return;                    // 拖拽结束不算点击
+    if(!canvas.requestPointerLock){
+      showToast("此环境不支持指针锁定，拖动画面即可环视");
+      return;
+    }
+    const p = canvas.requestPointerLock();
+    if(p && typeof p.catch === "function") p.catch(function(){});
+  });
+
+  canvas.addEventListener("pointerdown", function(e){
+    if(locked) return;
+    if(activePointer !== null) return;          // 只认第一根手指
+    if(e.pointerType === "mouse" && e.button !== 0) return;  // 只认左键
+    activePointer = e.pointerId;
+    movedAmt = 0;
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    canvas.classList.add("drag");
+    try{ canvas.setPointerCapture(e.pointerId); }catch(_){}
+  });
+
+  canvas.addEventListener("pointermove", function(e){
+    // --- 第一人称：鼠标相对位移直接驱动视角 ---
+    if(locked){
+      const sens = 0.0022 * (cam.fov / 72);     // 变焦时自动降低灵敏度
+      let mx = e.movementX || 0, my = e.movementY || 0;
+      // 过滤指针锁定瞬间可能出现的跳变值
+      if(Math.abs(mx) > 240) mx = 0;
+      if(Math.abs(my) > 240) my = 0;
+      cam.tYaw   += mx * sens;
+      cam.tPitch -= my * sens;                  // 鼠标上推 = 抬头
+      cam.tPitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, cam.tPitch));
+      return;
+    }
+
+    // --- 未锁定：拖拽环视 ---
+    if(!dragging || e.pointerId !== activePointer) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    movedAmt += Math.abs(dx) + Math.abs(dy);
+
+    const sens = 0.0026 * (cam.fov / 72);
+    cam.tYaw   -= dx * sens;
+    cam.tPitch += dy * sens * 0.9;
+    cam.tPitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, cam.tPitch));
+  });
+
+  function endDrag(e){
+    if(e.pointerId !== activePointer) return;
+    activePointer = null;
+    dragging = false;
+    canvas.classList.remove("drag");
+    try{ canvas.releasePointerCapture(e.pointerId); }catch(_){}
+  }
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
+
+  // 滚轮变焦
+  canvas.addEventListener("wheel", function(e){
+    e.preventDefault();
+    const step = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    cam.tFov = Math.max(38, Math.min(105, cam.tFov + step * 0.035));
+  }, { passive: false });
+
+  // 双击复位视角（仅未锁定时可用）
+  canvas.addEventListener("dblclick", function(e){
+    e.preventDefault();
+    if(!locked) resetView();
+  });
+
+  // 触摸时禁止页面滚动 / 双击缩放
+  canvas.style.touchAction = "none";
+
+  // 光速微调（指针锁定时无法点面板，用键盘）
+  function nudgeC(dir){
+    const idx = Math.max(0, Math.min(1, cToSlider(state.c) + dir * 0.035));
+    setC(sliderToC(idx));
+  }
+
+  window.addEventListener("keydown", function(e){
+    const k = e.key.toLowerCase();
+    keys[k] = true;
+    if(e.code === "Space"){
+      e.preventDefault();
+      if(!e.repeat) elPause.click();
+    }
+    if(e.repeat) return;
+    if(k === "r") resetView();
+    if(k === "[") nudgeC(-1);
+    if(k === "]") nudgeC(1);
+    if(k === "l") elDelay.click();
+    if(k === "g") addGhost();
+    if(k === "h") toggleAll();
+    if(k === "m") toggleMap();
+    if(k === "p") togglePanel();
+    if(k >= "1" && k <= "6") toggleBall(parseInt(k, 10) - 1);
+    if(["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"].indexOf(k) >= 0) e.preventDefault();
+  });
+  window.addEventListener("keyup", function(e){ keys[e.key.toLowerCase()] = false; });
+  window.addEventListener("blur", function(){
+    for(const k in keys) keys[k] = false;
+    dragging = false; activePointer = null;
+    canvas.classList.remove("drag");
+  });
+
+  // ============================================================
+  //  渲染循环
+  // ============================================================
+
+  let lastT = performance.now();
+  let accTime = 0, accFrames = 0;
+
+  function resize(){
+    const w = Math.max(320, Math.floor(window.innerWidth  * state.scale));
+    const h = Math.max(240, Math.floor(window.innerHeight * state.scale));
+    if(canvas.width !== w || canvas.height !== h){
+      canvas.width = w;
+      canvas.height = h;
+    }
+  }
+
+  function frame(now){
+    let dt = (now - lastT) / 1000;
+    lastT = now;
+    if(dt > 0.12) dt = 0.12;
+
+    // --- 视角平滑：拖拽写目标值，实际值指数追随，消掉鼠标抖动 ---
+    // 第一人称下追得更快，避免鼠标有「黏滞感」
+    const k = 1 - Math.exp(-dt * (locked ? 48 : 26));
+    cam.yaw   += (cam.tYaw   - cam.yaw)   * k;
+    cam.pitch += (cam.tPitch - cam.pitch) * k;
+    cam.fov   += (cam.tFov   - cam.fov)   * (1 - Math.exp(-dt * 12));
+
+    // --- 相机移动（暂停时仍可自由走动观察）---
+    {
+      const speed = (keys["shift"] ? 9.0 : 3.2) * dt;
+      const fwdX = Math.sin(cam.yaw), fwdZ = Math.cos(cam.yaw);
+      const rgtX = Math.cos(cam.yaw), rgtZ = -Math.sin(cam.yaw);
+      let mx = 0, mz = 0;
+      if(keys["w"] || keys["arrowup"])    { mx += fwdX; mz += fwdZ; }
+      if(keys["s"] || keys["arrowdown"])  { mx -= fwdX; mz -= fwdZ; }
+      if(keys["a"] || keys["arrowleft"])  { mx -= rgtX; mz -= rgtZ; }
+      if(keys["d"] || keys["arrowright"]) { mx += rgtX; mz += rgtZ; }
+      const ml = Math.hypot(mx, mz);
+      if(ml > 0.001){
+        cam.pos[0] += (mx / ml) * speed;
+        cam.pos[2] += (mz / ml) * speed;
+        const rr = Math.hypot(cam.pos[0], cam.pos[2]);
+        if(rr > CAM_LIMIT){ cam.pos[0] *= CAM_LIMIT/rr; cam.pos[2] *= CAM_LIMIT/rr; }
+      }
+
+      // 升降：E 上升 / Q 下降
+      let my = 0;
+      if(keys["e"]) my += 1;
+      if(keys["q"]) my -= 1;
+      if(my !== 0){
+        cam.pos[1] = Math.max(CAM_Y_MIN, Math.min(CAM_Y_MAX, cam.pos[1] + my * speed));
+      }
+    }
+
+    if(!state.paused) state.simTime += dt;
+
+    // --- 分辨率自适应 ---
+    accTime += dt * 1000; accFrames++;
+    if(accFrames >= 26){
+      const avg = accTime / accFrames;
+      if(avg > 26 && state.scale > 0.42)       state.scale = Math.max(0.42, state.scale - 0.07);
+      else if(avg < 12.5 && state.scale < 1.0) state.scale = Math.min(1.0,  state.scale + 0.05);
+      accTime = 0; accFrames = 0;
+    }
+
+    resize();
+
+    // --- 相机基向量 ---
+    const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    const cy = Math.cos(cam.yaw),   sy = Math.sin(cam.yaw);
+    const fwd   = [sy * cp, sp, cy * cp];
+    const right = [cy, 0, -sy];
+    const up    = [
+      fwd[1]*right[2] - fwd[2]*right[1],
+      fwd[2]*right[0] - fwd[0]*right[2],
+      fwd[0]*right[1] - fwd[1]*right[0]
+    ];
+
+    // --- 上传 uniform ---
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform2f(U.uRes, canvas.width, canvas.height);
+    gl.uniform1f(U.uTime, state.simTime);
+    gl.uniform1f(U.uC, state.c);
+    gl.uniform3f(U.uCamPos, cam.pos[0], cam.pos[1], cam.pos[2]);
+    gl.uniform3f(U.uCamFwd, fwd[0], fwd[1], fwd[2]);
+    gl.uniform3f(U.uCamRight, right[0], right[1], right[2]);
+    gl.uniform3f(U.uCamUp, up[0], up[1], up[2]);
+    gl.uniform1f(U.uTanHalf, Math.tan(cam.fov * Math.PI / 360));
+    gl.uniform4fv(U.uOrbC, orbC);
+    gl.uniform4fv(U.uOrbP, orbP);
+    gl.uniform3fv(U.uOrbCol, orbCol);
+    gl.uniform3f(U.uLightC, LIGHT.cx, 0, LIGHT.cz);
+    gl.uniform1f(U.uLightR, LIGHT.R);
+    gl.uniform1f(U.uLightW, LIGHT.w);
+    gl.uniform1f(U.uLightH, LIGHT.h);
+    gl.uniform1f(U.uMode, state.delayMode ? 1 : 0);
+    gl.uniform1f(U.uGhostCount, state.ghosts.length);
+    if(state.ghosts.length){
+      ghostBuf.fill(0);
+      for(let i = 0; i < state.ghosts.length; i++) ghostBuf[i] = state.ghosts[i];
+      gl.uniform1fv(U.uGhostC, ghostBuf);
+    }
+    for(let i = 0; i < 6; i++) visBuf[i] = state.ballVis[i] ? 1 : 0;
+    gl.uniform1fv(U.uBallVis, visBuf);
+    gl.uniform1f(U.uBallSpeed, state.ballSpeed);
+
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    drawMap();
+
+    // --- 状态文字 ---
+    const fps = Math.round(1000 / Math.max(dt * 1000, 0.01));
+    elStats.textContent = fps + " FPS · " + canvas.width + "×" + canvas.height;
+
+    requestAnimationFrame(frame);
+  }
+
+  // ============================================================
+  //  俯视图：真实位置 vs 你看到的位置
+  // ============================================================
+  const mapC = document.getElementById("map");
+  const MAP_SIZE = 224;
+  const mapDpr = Math.min(window.devicePixelRatio || 1, 2);
+  mapC.width = MAP_SIZE * mapDpr;
+  mapC.height = MAP_SIZE * mapDpr;
+  const mctx = mapC.getContext("2d");
+  mctx.scale(mapDpr, mapDpr);
+
+  const CX = MAP_SIZE / 2, CY = MAP_SIZE / 2;
+
+  // 小地图可视半径随相机远离原点自动放大，保证场景始终在视野内
+  let mapRange = 16;
+  let mapPPM = (MAP_SIZE / 2) / mapRange;
+
+  function updateMapScale(){
+    const d = Math.hypot(cam.pos[0], cam.pos[2]);
+    const target = Math.max(16, d + 12);
+    mapRange += (target - mapRange) * 0.09;
+    mapPPM = (MAP_SIZE / 2) / mapRange;
+  }
+
+  // 世界坐标 → 小地图像素：以相机为中心，+Z 朝上，+X 朝右
+  function toS(x, z){
+    return [CX + (x - cam.pos[0]) * mapPPM, CY - (z - cam.pos[2]) * mapPPM];
+  }
+
+  // 求解：相机此刻看到的是球在哪个时刻的样子
+  // 从「现在」往回扫描，取最早能追上的那个解（即最先到达相机的光）
+  function solveSeenTau(i, now, c, camPos){
+    function g(tau){
+      const p = ballPos(i, tau);
+      const d = Math.hypot(p[0]-camPos[0], p[1]-camPos[1], p[2]-camPos[2]);
+      return (now - tau) - d / c;
+    }
+    const SPAN = Math.min(5000, Math.max(200, 30 / c * 1.6));
+    const STEP = Math.max(0.2, SPAN / 700);
+    let prev = now;
+    for(let t = now - STEP; t >= now - SPAN; t -= STEP){
+      if(g(t) > 0){
+        let lo = t, hi = prev;
+        for(let k = 0; k < 28; k++){
+          const mid = (lo + hi) * 0.5;
+          if(g(mid) > 0) lo = mid; else hi = mid;
+        }
+        return (lo + hi) * 0.5;
+      }
+      prev = t;
+    }
+    return null;   // 光永远追不上这个球
+  }
+
+  function drawMap(){
+    const c = state.c, now = state.simTime;
+    updateMapScale();
+    mctx.clearRect(0, 0, MAP_SIZE, MAP_SIZE);
+
+    // 背景圆
+    mctx.save();
+    mctx.beginPath();
+    mctx.arc(CX, CY, MAP_SIZE/2 - 1, 0, Math.PI*2);
+    mctx.clip();
+
+    mctx.fillStyle = "rgba(6,8,15,1)";
+    mctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
+
+    // 小地图外圈半径
+    const OUTER = MAP_SIZE/2 - 1;
+
+    // ---- 视野扇形：与 3D 画面的水平视场严格一致 ----
+    const aspect = window.innerWidth / Math.max(window.innerHeight, 1);
+    const hFov = 2 * Math.atan(Math.tan(cam.fov * Math.PI / 360) * aspect);
+    const yawAng = -Math.PI/2 + cam.yaw;
+    const halfH = Math.min(hFov / 2, Math.PI * 0.98);
+    const FR = OUTER - 2;
+
+    mctx.beginPath();
+    mctx.moveTo(CX, CY);
+    mctx.arc(CX, CY, FR, yawAng - halfH, yawAng + halfH);
+    mctx.closePath();
+    const vg = mctx.createRadialGradient(CX, CY, 0, CX, CY, FR);
+    vg.addColorStop(0,    "rgba(96,186,255,.30)");
+    vg.addColorStop(0.45, "rgba(96,186,255,.12)");
+    vg.addColorStop(1,    "rgba(96,186,255,.03)");
+    mctx.fillStyle = vg;
+    mctx.fill();
+
+    // 视野两条边界
+    mctx.strokeStyle = "rgba(96,186,255,.30)";
+    mctx.lineWidth = 1;
+    mctx.beginPath();
+    mctx.moveTo(CX, CY);
+    mctx.lineTo(CX + Math.cos(yawAng - halfH) * FR, CY + Math.sin(yawAng - halfH) * FR);
+    mctx.moveTo(CX, CY);
+    mctx.lineTo(CX + Math.cos(yawAng + halfH) * FR, CY + Math.sin(yawAng + halfH) * FR);
+    mctx.stroke();
+
+    // 视线中心箭头（画面正中央对准的方向）
+    const AX = Math.sin(cam.yaw), AZ = -Math.cos(cam.yaw);
+    const AL = FR * 0.60;
+    mctx.strokeStyle = "rgba(255,255,255,.82)";
+    mctx.lineWidth = 1.5;
+    mctx.beginPath();
+    mctx.moveTo(CX + AX * 11, CY + AZ * 11);
+    mctx.lineTo(CX + AX * AL, CY + AZ * AL);
+    mctx.stroke();
+
+    const hx = CX + AX * AL, hy = CY + AZ * AL;
+    const px = -AZ, py = AX;
+    mctx.beginPath();
+    mctx.moveTo(hx + AX * 6.5, hy + AZ * 6.5);
+    mctx.lineTo(hx + px * 4, hy + py * 4);
+    mctx.lineTo(hx - px * 4, hy - py * 4);
+    mctx.closePath();
+    mctx.fillStyle = "rgba(255,255,255,.82)";
+    mctx.fill();
+
+    // ---- 方位刻度（画在扇形之上，保证可读）----
+    for(let a = 0; a < 360; a += 30){
+      const rad = a * Math.PI / 180;
+      const major = (a % 90 === 0);
+      const r1 = OUTER - (major ? 10 : 5);
+      const r2 = OUTER - 1;
+      mctx.strokeStyle = major ? "rgba(255,255,255,.34)" : "rgba(255,255,255,.13)";
+      mctx.lineWidth = major ? 1.4 : 1;
+      mctx.beginPath();
+      mctx.moveTo(CX + Math.sin(rad) * r1, CY - Math.cos(rad) * r1);
+      mctx.lineTo(CX + Math.sin(rad) * r2, CY - Math.cos(rad) * r2);
+      mctx.stroke();
+    }
+
+    // ---- 四个方位词（相对世界坐标，不随相机转动）----
+    mctx.font = "8.5px -apple-system,sans-serif";
+    mctx.textAlign = "center";
+    mctx.textBaseline = "middle";
+    mctx.fillStyle = "rgba(255,255,255,.34)";
+    const dirs = [["前",0],["右",90],["后",180],["左",270]];
+    for(let d = 0; d < dirs.length; d++){
+      const rad2 = dirs[d][1] * Math.PI / 180;
+      const rr = OUTER - 23;
+      mctx.fillText(dirs[d][0], CX + Math.sin(rad2)*rr, CY - Math.cos(rad2)*rr);
+    }
+    mctx.textBaseline = "alphabetic";
+
+    // ---- 距离环 ----
+    const ringStep = mapRange > 30 ? 10 : 5;
+    mctx.strokeStyle = "rgba(150,175,225,.13)";
+    mctx.lineWidth = 1;
+    for(let r = ringStep; r <= mapRange; r += ringStep){
+      mctx.beginPath();
+      mctx.arc(CX, CY, r * mapPPM, 0, Math.PI*2);
+      mctx.stroke();
+    }
+
+    // ---- 光 1 秒走过的距离 ----
+    const lightR = c * mapPPM;
+    if(lightR < MAP_SIZE * 0.8){
+      mctx.strokeStyle = "rgba(255,210,90,.34)";
+      mctx.setLineDash([3, 4]);
+      mctx.beginPath();
+      mctx.arc(CX, CY, lightR, 0, Math.PI*2);
+      mctx.stroke();
+      mctx.setLineDash([]);
+      if(lightR > 16){
+        mctx.fillStyle = "rgba(255,210,90,.55)";
+        mctx.font = "9px -apple-system,sans-serif";
+        mctx.textAlign = "center";
+        mctx.fillText("光 1 秒", CX, CY - lightR - 5);
+      }
+    }
+
+    // 球
+    for(let i = 0; i < SPHERES.length; i++){
+      if(!state.ballVis[i]) continue;
+      const s = SPHERES[i];
+      const rgb = s.col.map(function(v){ return Math.round(v*255); }).join(",");
+
+      const pNow = ballPos(i, now);
+      const tauSeen = solveSeenTau(i, now, c, cam.pos);
+
+      const a = toS(pNow[0], pNow[2]);
+
+      // 虚影：用户标记的各个光速对应的位置，串成一条线
+      if(state.ghosts.length){
+        const dNow = Math.hypot(
+          pNow[0] - cam.pos[0],
+          pNow[1] - cam.pos[1],
+          pNow[2] - cam.pos[2]
+        );
+        const pts = [];
+        for(let g = 0; g < state.ghosts.length; g++){
+          const ck = state.ghosts[g];
+          if(Math.abs(ck - c) < Math.max(ck, 1) * 0.01) continue;
+          const tk = now - dNow / ck;
+          const gp = ballPos(i, tk);
+          pts.push(toS(gp[0], gp[2]));
+        }
+
+        if(pts.length){
+          mctx.strokeStyle = "rgba(" + rgb + ",.18)";
+          mctx.lineWidth = 1;
+          mctx.beginPath();
+          mctx.moveTo(pts[0][0], pts[0][1]);
+          for(let q = 1; q < pts.length; q++) mctx.lineTo(pts[q][0], pts[q][1]);
+          mctx.lineTo(a[0], a[1]);
+          mctx.stroke();
+
+          mctx.fillStyle = "rgba(" + rgb + ",.45)";
+          for(let q = 0; q < pts.length; q++){
+            mctx.beginPath();
+            mctx.arc(pts[q][0], pts[q][1], 2.0, 0, Math.PI*2);
+            mctx.fill();
+          }
+        }
+      }
+
+      if(tauSeen !== null){
+        const pSeen = ballPos(i, tauSeen);
+        const b = toS(pSeen[0], pSeen[2]);
+
+        // 光走过的路径
+        mctx.strokeStyle = "rgba(" + rgb + ",.22)";
+        mctx.lineWidth = 1;
+        mctx.beginPath();
+        mctx.moveTo(CX, CY);
+        mctx.lineTo(b[0], b[1]);
+        mctx.stroke();
+
+        // 你看到的位置（空心）
+        mctx.strokeStyle = "rgba(" + rgb + ",.95)";
+        mctx.lineWidth = 1.6;
+        mctx.beginPath();
+        mctx.arc(b[0], b[1], 5.5, 0, Math.PI*2);
+        mctx.stroke();
+      }
+
+      // 真实位置（实心）
+      mctx.fillStyle = "rgba(" + rgb + ",.32)";
+      mctx.beginPath();
+      mctx.arc(a[0], a[1], 4.2, 0, Math.PI*2);
+      mctx.fill();
+
+      mctx.fillStyle = "rgba(" + rgb + ",.95)";
+      mctx.beginPath();
+      mctx.arc(a[0], a[1], 2.1, 0, Math.PI*2);
+      mctx.fill();
+    }
+
+    // 相机
+    mctx.fillStyle = "#ffffff";
+    mctx.beginPath();
+    mctx.arc(CX, CY, 2.6, 0, Math.PI*2);
+    mctx.fill();
+
+    mctx.restore();
+
+    // 边框
+    mctx.strokeStyle = "rgba(255,255,255,.10)";
+    mctx.lineWidth = 1;
+    mctx.beginPath();
+    mctx.arc(CX, CY, MAP_SIZE/2 - 1, 0, Math.PI*2);
+    mctx.stroke();
+
+    // 图例
+    mctx.font = "9px -apple-system,sans-serif";
+    mctx.textAlign = "left";
+    mctx.textBaseline = "alphabetic";
+    mctx.fillStyle = "rgba(255,255,255,.34)";
+    mctx.fillText("● 真实位置", 10, 16);
+    mctx.fillText("○ 你看到的", 10, 29);
+    mctx.fillStyle = "rgba(96,186,255,.62)";
+    mctx.fillText("▰ 当前视野", 10, 42);
+
+    // 当前朝向角（0° = +Z，顺时针）
+    let az = cam.yaw * 180 / Math.PI;
+    az = ((az % 360) + 360) % 360;
+    mctx.textAlign = "right";
+    mctx.fillStyle = "rgba(255,255,255,.42)";
+    mctx.fillText("朝向 " + String(Math.round(az)).padStart(3, "0") + "°", MAP_SIZE - 10, MAP_SIZE - 10);
+
+    // 比例尺
+    mctx.textAlign = "left";
+    mctx.fillStyle = "rgba(255,255,255,.28)";
+    mctx.fillText("±" + Math.round(mapRange) + " m", 10, MAP_SIZE - 10);
+  }
+
+  // ============================================================
+  //  启动
+  // ============================================================
+  setC(1.0);
+  resize();
+  requestAnimationFrame(frame);
+
+  window.addEventListener("resize", resize);
+})();
+</script>
+</body>
+</html>
