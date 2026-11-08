@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D 体素沙盘 · 第一人称</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%; height:100%; overflow:hidden;
+    background:#06080f;
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    color:#cfe0ff;
+    user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  canvas { display:block; }
+
+  /* 准星 */
+  #crosshair {
+    position:fixed; top:50%; left:50%;
+    transform:translate(-50%, -50%);
+    width:22px; height:22px;
+    pointer-events:none; z-index:20;
+    opacity:.75;
+  }
+  #crosshair::before,
+  #crosshair::after {
+    content:''; position:absolute; background:#fff;
+    box-shadow:0 0 4px rgba(0,0,0,.8);
+  }
+  #crosshair::before {
+    left:50%; top:0; width:2px; height:100%;
+    transform:translateX(-50%);
+  }
+  #crosshair::after {
+    top:50%; left:0; height:2px; width:100%;
+    transform:translateY(-50%);
+  }
+
+  /* 顶部材质栏 */
+  .bar {
+    position:fixed; top:14px; left:50%; transform:translateX(-50%);
+    display:flex; gap:6px; padding:8px;
+    background:rgba(14,22,44,.85);
+    border:1px solid rgba(90,140,255,.2);
+    border-radius:14px;
+    backdrop-filter:blur(12px);
+    box-shadow:0 8px 40px rgba(0,0,0,.5);
+    z-index:10; flex-wrap:wrap; justify-content:center;
+    max-width:calc(100vw - 28px);
+  }
+  .btn {
+    padding:8px 14px; font-size:13px; font-weight:600;
+    font-family:inherit; color:#cfe0ff;
+    background:rgba(30,45,90,.6);
+    border:1px solid rgba(90,140,255,.25);
+    border-radius:9px; cursor:pointer;
+    transition:all .15s;
+    display:flex; align-items:center; gap:6px;
+    white-space:nowrap;
+  }
+  .btn:hover { background:rgba(50,75,150,.6); }
+  .btn.active {
+    background:rgba(60,120,255,.4);
+    border-color:rgba(130,180,255,.85);
+    box-shadow:0 0 16px rgba(80,150,255,.5);
+  }
+  .dot {
+    width:10px; height:10px; border-radius:50%;
+    display:inline-block;
+    box-shadow:inset 0 0 4px rgba(0,0,0,.4);
+  }
+
+  /* 底部信息 */
+  .hud {
+    position:fixed; bottom:14px; left:14px;
+    display:flex; flex-direction:column; gap:4px;
+    padding:10px 14px;
+    background:rgba(14,22,44,.75);
+    border:1px solid rgba(90,140,255,.15);
+    border-radius:10px;
+    backdrop-filter:blur(8px);
+    font-size:11px; letter-spacing:.08em;
+    color:rgba(170,200,255,.8);
+    z-index:10;
+    font-variant-numeric:tabular-nums;
+    line-height:1.7;
+  }
+  .hud .k { color:rgba(140,175,240,.5); }
+
+  /* 底部右侧按钮 */
+  .ctrl {
+    position:fixed; bottom:14px; right:14px;
+    display:flex; gap:8px;
+    z-index:10;
+  }
+
+  /* 提示 */
+  .hint {
+    position:fixed; top:70px; left:50%;
+    transform:translateX(-50%);
+    font-size:11px; letter-spacing:.15em;
+    color:rgba(150,190,255,.4);
+    pointer-events:none; z-index:5;
+    text-align:center; line-height:1.8;
+  }
+
+  /* 开始覆盖层 */
+  .start {
+    position:fixed; inset:0; z-index:100;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    background:radial-gradient(circle at 50% 45%, rgba(30,50,110,.6), rgba(3,4,10,.96) 70%);
+    backdrop-filter:blur(6px);
+    gap:16px; cursor:pointer;
+    transition:opacity .3s;
+  }
+  .start.hide { opacity:0; pointer-events:none; }
+  .start h1 {
+    font-size:clamp(2rem, 6vw, 3.4rem);
+    font-weight:900; letter-spacing:.12em;
+    background:linear-gradient(90deg,#6cf,#a8f,#f9c,#6cf);
+    background-size:300% 100%;
+    -webkit-background-clip:text; background-clip:text;
+    color:transparent;
+    animation:flow 7s linear infinite;
+    filter:drop-shadow(0 0 30px rgba(110,150,255,.5));
+  }
+  @keyframes flow { to { background-position:300% 0; } }
+  .start p {
+    font-size:clamp(.75rem, 2.2vw, .95rem);
+    letter-spacing:.22em;
+    color:rgba(170,195,255,.6);
+    line-height:2;
+    text-align:center;
+  }
+  .start .cta {
+    margin-top:8px;
+    padding:14px 44px;
+    font-size:clamp(.85rem, 2.4vw, 1rem);
+    font-weight:700; letter-spacing:.3em;
+    color:#dff0ff;
+    background:linear-gradient(135deg, rgba(60,120,255,.28), rgba(160,90,255,.28));
+    border:1.5px solid rgba(130,180,255,.6);
+    border-radius:99px;
+    box-shadow:0 0 30px rgba(80,140,255,.35), inset 0 0 24px rgba(90,150,255,.15);
+    animation:pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow:0 0 30px rgba(80,140,255,.35), inset 0 0 24px rgba(90,150,255,.15); }
+    50% { box-shadow:0 0 50px rgba(100,170,255,.6), inset 0 0 32px rgba(120,180,255,.25); }
+  }
+
+  .loading {
+    position:fixed; inset:0; z-index:200;
+    display:flex; align-items:center; justify-content:center;
+    background:#06080f;
+    font-size:14px; letter-spacing:.3em;
+    color:rgba(150,190,255,.6);
+    transition:opacity .5s;
+  }
+  .loading.hide { opacity:0; pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">加 载 中...</div>
+
+<div id="crosshair" style="display:none"></div>
+
+<div class="bar" id="palette"></div>
+
+<div class="hint">
+  <span id="hintText">WASD 移动 · 空格跳跃 · Shift 加速</span>
+</div>
+
+<div class="hud">
+  <div><span class="k">坐标 </span><span id="hudPos">0, 0, 0</span></div>
+  <div><span class="k">FPS  </span><span id="hudFps">60</span></div>
+</div>
+
+<div class="ctrl">
+  <button class="btn" id="pauseBtn">暂停沙盘</button>
+  <button class="btn" id="resetBtn">重置</button>
+</div>
+
+<div class="start" id="startScreen">
+  <h1>体素沙盘</h1>
+  <p>WASD 移动 · 空格跳跃 · Shift 加速<br>鼠标 环顾 · 左键 破坏 · 右键 放置<br>空格（在地面时）跳跃</p>
+  <div class="cta">点 击 开 始</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ==================== 世界尺寸 ==================== */
+const W = 32, H = 20, D = 32;
+const TOTAL = W * H * D;
+
+/* ==================== 材质定义 ==================== */
+const EMPTY = 0, SAND = 1, WATER = 2, STONE = 3, WOOD = 4, FIRE = 5, SMOKE = 6, ACID = 7;
+
+const MATS = [
+  { id: SAND,  name: '沙子', color: [0.91, 0.78, 0.48] },
+  { id: WATER, name: '水',   color: [0.29, 0.62, 0.88] },
+  { id: STONE, name: '石头', color: [0.50, 0.50, 0.50] },
+  { id: WOOD,  name: '木头', color: [0.54, 0.35, 0.23] },
+  { id: FIRE,  name: '火',   color: [1.00, 0.55, 0.08] },
+  { id: ACID,  name: '酸液', color: [0.48, 1.00, 0.23] },
+];
+const MAT_MAP = {};
+for (const m of MATS) MAT_MAP[m.id] = m;
+
+let currentMat = SAND;
+
+/* ==================== 数据 ==================== */
+const voxels = new Uint8Array(TOTAL);
+const lifeArr = new Uint8Array(TOTAL);
+const updated = new Uint8Array(TOTAL);
+
+const idx = (x, y, z) => x + y * W + z * W * H;
+const inB = (x, y, z) => x >= 0 && x < W && y >= 0 && y < H && z >= 0 && z < D;
+
+/* ==================== 固体判断 ==================== */
+function isSolid(x, y, z) {
+  if (!inB(x, y, z)) return false;
+  const t = voxels[idx(x, y, z)];
+  return t === STONE || t === SAND || t === WOOD;
+}
+
+/* ==================== Three.js 场景 ==================== */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a1428);
+scene.fog = new THREE.Fog(0x0a1428, 30, 80);
+
+const camera = new THREE.PerspectiveCamera(
+  75, window.innerWidth / window.innerHeight, 0.1, 500
+);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const ambient = new THREE.AmbientLight(0xaabbff, 0.7);
+scene.add(ambient);
+
+const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+sun.position.set(20, 40, 15);
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0x6688cc, 0.35);
+fill.position.set(-15, 20, -20);
+scene.add(fill);
+
+/* ==================== InstancedMesh ==================== */
+const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+const cubeMat = new THREE.MeshLambertMaterial();
+const mesh = new THREE.InstancedMesh(cubeGeo, cubeMat, TOTAL);
+mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+mesh.frustumCulled = false;
+mesh.setColorAt(0, new THREE.Color(1, 1, 1));
+scene.add(mesh);
+
+const dummy = new THREE.Object3D();
+const tmpColor = new THREE.Color();
+
+/* 高亮预览框 */
+const highlightGeo = new THREE.BoxGeometry(1.02, 1.02, 1.02);
+const highlight = new THREE.LineSegments(
+  new THREE.EdgesGeometry(highlightGeo),
+  new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 })
+);
+highlight.visible = false;
+scene.add(highlight);
+
+/* ==================== 玩家 ==================== */
+const PLAYER = {
+  pos: new THREE.Vector3(W / 2, 8, D / 2),
+  vel: new THREE.Vector3(),
+  width: 0.6,
+  height: 1.75,
+  eyeHeight: 1.6,
+  onGround: false,
+  yaw: 0,
+  pitch: 0,
+};
+
+const GRAVITY = 26;
+const WALK_SPEED = 5;
+const SPRINT_SPEED = 8;
+const JUMP_SPEED = 8.8;
+
+/* ==================== 输入 ==================== */
+const keys = {};
+let isLocked = false;
+let leftDown = false;
+let rightDown = false;
+let clickCooldown = 0;
+
+const el = renderer.domElement;
+
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (['KeyW','KeyA','KeyS','KeyD','Space'].includes(e.code)) e.preventDefault();
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+el.addEventListener('contextmenu', e => e.preventDefault());
+
+el.addEventListener('mousedown', e => {
+  if (!isLocked) {
+    el.requestPointerLock();
+    return;
+  }
+  if (e.button === 0) leftDown = true;
+  if (e.button === 2) rightDown = true;
+  clickCooldown = 0;
+});
+
+el.addEventListener('mouseup', e => {
+  if (e.button === 0) leftDown = false;
+  if (e.button === 2) rightDown = false;
+});
+
+document.addEventListener('pointerlockchange', () => {
+  isLocked = document.pointerLockElement === el;
+});
+
+document.addEventListener('mousemove', e => {
+  if (!isLocked) return;
+  PLAYER.yaw   -= e.movementX * 0.0022;
+  PLAYER.pitch -= e.movementY * 0.0022;
+  PLAYER.pitch = Math.max(-Math.PI/2 + 0.01, Math.min(Math.PI/2 - 0.01, PLAYER.pitch));
+});
+
+/* 开始界面 */
+const startScreen = document.getElementById('startScreen');
+startScreen.addEventListener('click', () => {
+  startScreen.classList.add('hide');
+  document.getElementById('crosshair').style.display = 'block';
+  el.requestPointerLock();
+});
+
+/* 暂停/重置按钮 */
+const pauseBtn = document.getElementById('pauseBtn');
+let paused = false;
+pauseBtn.addEventListener('click', () => {
+  paused = !paused;
+  pauseBtn.textContent = paused ? '继续沙盘' : '暂停沙盘';
+});
+
+const resetBtn = document.getElementById('resetBtn');
+resetBtn.addEventListener('click', () => {
+  voxels.fill(EMPTY);
+  lifeArr.fill(0);
+  initWorld();
+  PLAYER.pos.set(W / 2, 8, D / 2);
+  PLAYER.vel.set(0, 0, 0);
+  dirty = true;
+});
+
+/* ==================== 玩家碰撞 ==================== */
+function playerCollides(px, py, pz) {
+  const hw = PLAYER.width / 2;
+  const minX = Math.floor(px - hw);
+  const maxX = Math.floor(px + hw);
+  const minY = Math.floor(py);
+  const maxY = Math.floor(py + PLAYER.height - 0.001);
+  const minZ = Math.floor(pz - hw);
+  const maxZ = Math.floor(pz + hw);
+
+  for (let y = minY; y <= maxY; y++) {
+    for (let z = minZ; z <= maxZ; z++) {
+      for (let x = minX; x <= maxX; x++) {
+        if (isSolid(x, y, z)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function blockIntersectsPlayer(bx, by, bz) {
+  const hw = PLAYER.width / 2;
+  const px = PLAYER.pos.x, py = PLAYER.pos.y, pz = PLAYER.pos.z;
+  return (
+    bx + 1 > px - hw && bx < px + hw &&
+    by + 1 > py && by < py + PLAYER.height &&
+    bz + 1 > pz - hw && bz < pz + hw
+  );
+}
+
+/* ==================== 玩家更新 ==================== */
+function updatePlayer(dt) {
+  // 朝向向量
+  const fx = -Math.sin(PLAYER.yaw);
+  const fz = -Math.cos(PLAYER.yaw);
+  const rx =  Math.cos(PLAYER.yaw);
+  const rz = -Math.sin(PLAYER.yaw);
+
+  let mx = 0, mz = 0;
+  if (keys['KeyW']) { mx += fx; mz += fz; }
+  if (keys['KeyS']) { mx -= fx; mz -= fz; }
+  if (keys['KeyA']) { mx -= rx; mz -= rz; }
+  if (keys['KeyD']) { mx += rx; mz += rz; }
+
+  const len = Math.hypot(mx, mz);
+  if (len > 0) { mx /= len; mz /= len; }
+
+  const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
+  const speed = sprint ? SPRINT_SPEED : WALK_SPEED;
+
+  PLAYER.vel.x = mx * speed;
+  PLAYER.vel.z = mz * speed;
+
+  // 跳跃
+  if (keys['Space'] && PLAYER.onGround) {
+    PLAYER.vel.y = JUMP_SPEED;
+    PLAYER.onGround = false;
+  }
+
+  // 重力
+  PLAYER.vel.y -= GRAVITY * dt;
+  if (PLAYER.vel.y < -50) PLAYER.vel.y = -50;
+
+  // 分轴移动
+  const dx = PLAYER.vel.x * dt;
+  const dy = PLAYER.vel.y * dt;
+  const dz = PLAYER.vel.z * dt;
+
+  if (dx !== 0) {
+    const nx = PLAYER.pos.x + dx;
+    if (!playerCollides(nx, PLAYER.pos.y, PLAYER.pos.z)) {
+      PLAYER.pos.x = nx;
+    } else {
+      PLAYER.vel.x = 0;
+    }
+  }
+  if (dz !== 0) {
+    const nz = PLAYER.pos.z + dz;
+    if (!playerCollides(PLAYER.pos.x, PLAYER.pos.y, nz)) {
+      PLAYER.pos.z = nz;
+    } else {
+      PLAYER.vel.z = 0;
+    }
+  }
+  if (dy !== 0) {
+    const ny = PLAYER.pos.y + dy;
+    if (!playerCollides(PLAYER.pos.x, ny, PLAYER.pos.z)) {
+      PLAYER.pos.y = ny;
+      PLAYER.onGround = false;
+    } else {
+      if (dy < 0) {
+        // 落地：贴合到地面
+        PLAYER.pos.y = Math.round(PLAYER.pos.y);
+        PLAYER.onGround = true;
+      }
+      PLAYER.vel.y = 0;
+    }
+  }
+
+  // 掉出世界 → 重生
+  if (PLAYER.pos.y < -5) {
+    PLAYER.pos.set(W / 2, 8, D / 2);
+    PLAYER.vel.set(0, 0, 0);
+  }
+
+  // 相机跟随
+  camera.position.set(
+    PLAYER.pos.x,
+    PLAYER.pos.y + PLAYER.eyeHeight,
+    PLAYER.pos.z
+  );
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = PLAYER.yaw;
+  camera.rotation.x = PLAYER.pitch;
+  camera.rotation.z = 0;
+}
+
+/* ==================== 射线（DDA） ==================== */
+const _dir = new THREE.Vector3();
+const _origin = new THREE.Vector3();
+
+function raycastVoxel(maxDist = 6) {
+  camera.getWorldDirection(_dir);
+  _origin.copy(camera.position);
+
+  let x = Math.floor(_origin.x);
+  let y = Math.floor(_origin.y);
+  let z = Math.floor(_origin.z);
+
+  const stepX = Math.sign(_dir.x);
+  const stepY = Math.sign(_dir.y);
+  const stepZ = Math.sign(_dir.z);
+
+  const tDeltaX = stepX !== 0 ? Math.abs(1 / _dir.x) : Infinity;
+  const tDeltaY = stepY !== 0 ? Math.abs(1 / _dir.y) : Infinity;
+  const tDeltaZ = stepZ !== 0 ? Math.abs(1 / _dir.z) : Infinity;
+
+  let tMaxX = stepX > 0 ? (x + 1 - _origin.x) / _dir.x
+            : stepX < 0 ? (x - _origin.x) / _dir.x
+            : Infinity;
+  let tMaxY = stepY > 0 ? (y + 1 - _origin.y) / _dir.y
+            : stepY < 0 ? (y - _origin.y) / _dir.y
+            : Infinity;
+  let tMaxZ = stepZ > 0 ? (z + 1 - _origin.z) / _dir.z
+            : stepZ < 0 ? (z - _origin.z) / _dir.z
+            : Infinity;
+
+  // 起点
+  if (inB(x, y, z) && isSolid(x, y, z)) {
+    return { x, y, z, nx: 0, ny: 0, nz: 0, dist: 0 };
+  }
+
+  let lastAxis = null;
+  let t = 0;
+
+  for (let i = 0; i < 256; i++) {
+    if (tMaxX < tMaxY && tMaxX < tMaxZ) {
+      x += stepX; t = tMaxX; tMaxX += tDeltaX; lastAxis = 'x';
+    } else if (tMaxY < tMaxZ) {
+      y += stepY; t = tMaxY; tMaxY += tDeltaY; lastAxis = 'y';
+    } else {
+      z += stepZ; t = tMaxZ; tMaxZ += tDeltaZ; lastAxis = 'z';
+    }
+
+    if (t > maxDist) return null;
+    if (!inB(x, y, z)) return null;
+
+    if (isSolid(x, y, z)) {
+      let nx = 0, ny = 0, nz = 0;
+      if (lastAxis === 'x') nx = -stepX;
+      if (lastAxis === 'y') ny = -stepY;
+      if (lastAxis === 'z') nz = -stepZ;
+      return { x, y, z, nx, ny, nz, dist: t };
+    }
+  }
+  return null;
+}
+
+/* ==================== 操作方块 ==================== */
+function breakBlock(x, y, z) {
+  if (y === 0) return;  // 底层基岩不可破坏
+  voxels[idx(x, y, z)] = EMPTY;
+  lifeArr[idx(x, y, z)] = 0;
+}
+
+function placeBlock(x, y, z) {
+  if (!inB(x, y, z)) return;
+  if (voxels[idx(x, y, z)] !== EMPTY) return;
+  if (blockIntersectsPlayer(x, y, z)) return;
+
+  voxels[idx(x, y, z)] = currentMat;
+  if (currentMat === FIRE) lifeArr[idx(x, y, z)] = 80 + Math.random() * 60;
+  else if (currentMat === ACID) lifeArr[idx(x, y, z)] = 220;
+  else lifeArr[idx(x, y, z)] = 0;
+}
+
+function handleClick(dt) {
+  clickCooldown -= dt;
+  if (clickCooldown > 0) return;
+  if (!leftDown && !rightDown) return;
+
+  const hit = raycastVoxel(6);
+  if (!hit) return;
+
+  if (leftDown) {
+    breakBlock(hit.x, hit.y, hit.z);
+    clickCooldown = 0.16;
+  } else if (rightDown) {
+    placeBlock(hit.x + hit.nx, hit.y + hit.ny, hit.z + hit.nz);
+    clickCooldown = 0.18;
+  }
+}
+
+/* ==================== 高亮预览 ==================== */
+function updateHighlight() {
+  if (!isLocked) { highlight.visible = false; return; }
+  const hit = raycastVoxel(6);
+  if (hit) {
+    highlight.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
+    highlight.visible = true;
+  } else {
+    highlight.visible = false;
+  }
+}
+
+/* ==================== 沙盘物理 ==================== */
+function swapCells(a, b) {
+  const t = voxels[a]; voxels[a] = voxels[b]; voxels[b] = t;
+  const l = lifeArr[a]; lifeArr[a] = lifeArr[b]; lifeArr[b] = l;
+  updated[a] = 1;
+  updated[b] = 1;
+}
+
+const EMPTY_OR_FLUID = v => v === EMPTY || v === WATER || v === ACID;
+
+const DIRS_4 = [[1,0],[-1,0],[0,1],[0,-1]];
+function shuffledDirs() {
+  const a = DIRS_4.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function updateSand(x, y, z, i) {
+  if (y === 0) return;
+  const bi = idx(x, y - 1, z);
+  if (EMPTY_OR_FLUID(voxels[bi])) { swapCells(i, bi); return; }
+  for (const [dx, dz] of shuffledDirs()) {
+    const nx = x + dx, nz = z + dz;
+    if (!inB(nx, y - 1, nz)) continue;
+    const ni = idx(nx, y - 1, nz);
+    if (EMPTY_OR_FLUID(voxels[ni])) { swapCells(i, ni); return; }
+  }
+}
+
+function updateWater(x, y, z, i) {
+  if (y > 0) {
+    const bi = idx(x, y - 1, z);
+    if (voxels[bi] === EMPTY) { swapCells(i, bi); return; }
+  }
+  for (const [dx, dz] of shuffledDirs()) {
+    const nx = x + dx, nz = z + dz;
+    if (!inB(nx, y, nz)) continue;
+    const ni = idx(nx, y, nz);
+    if (voxels[ni] === EMPTY) { swapCells(i, ni); return; }
+  }
+  if (y > 0) {
+    for (const [dx, dz] of shuffledDirs()) {
+      const nx = x + dx, nz = z + dz;
+      if (!inB(nx, y - 1, nz)) continue;
+      const ni = idx(nx, y - 1, nz);
+      if (voxels[ni] === EMPTY) { swapCells(i, ni); return; }
+    }
+  }
+}
+
+function updateFire(x, y, z, i) {
+  lifeArr[i]--;
+  if (lifeArr[i] <= 0) {
+    if (Math.random() < 0.5) {
+      voxels[i] = SMOKE;
+      lifeArr[i] = 30 + Math.floor(Math.random() * 40);
+    } else {
+      voxels[i] = EMPTY;
+      lifeArr[i] = 0;
+    }
+    return;
+  }
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy && !dz) continue;
+        const nx = x + dx, ny = y + dy, nz = z + dz;
+        if (!inB(nx, ny, nz)) continue;
+        const ni = idx(nx, ny, nz);
+        if (voxels[ni] === WOOD && Math.random() < 0.025) {
+          voxels[ni] = FIRE;
+          lifeArr[ni] = 50 + Math.floor(Math.random() * 50);
+          updated[ni] = 1;
+        } else if (voxels[ni] === WATER) {
+          voxels[i] = SMOKE;
+          lifeArr[i] = 25;
+          return;
+        }
+      }
+    }
+  }
+  if (y < H - 1) {
+    const ui = idx(x, y + 1, z);
+    if (voxels[ui] === EMPTY || voxels[ui] === SMOKE) { swapCells(i, ui); return; }
+    for (const [dx, dz] of shuffledDirs()) {
+      const nx = x + dx, nz = z + dz;
+      if (!inB(nx, y + 1, nz)) continue;
+      const ni = idx(nx, y + 1, nz);
+      if (voxels[ni] === EMPTY || voxels[ni] === SMOKE) { swapCells(i, ni); return; }
+    }
+  }
+}
+
+function updateSmoke(x, y, z, i) {
+  lifeArr[i]--;
+  if (lifeArr[i] <= 0) { voxels[i] = EMPTY; lifeArr[i] = 0; return; }
+  if (y < H - 1) {
+    const ui = idx(x, y + 1, z);
+    if (voxels[ui] === EMPTY) { swapCells(i, ui); return; }
+    for (const [dx, dz] of shuffledDirs()) {
+      const nx = x + dx, nz = z + dz;
+      if (!inB(nx, y + 1, nz)) continue;
+      const ni = idx(nx, y + 1, nz);
+      if (voxels[ni] === EMPTY) { swapCells(i, ni); return; }
+    }
+  }
+}
+
+function updateAcid(x, y, z, i) {
+  lifeArr[i]--;
+  if (lifeArr[i] <= 0) { voxels[i] = SMOKE; lifeArr[i] = 20; return; }
+
+  if (Math.random() < 0.12) {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy && !dz) continue;
+          const nx = x + dx, ny = y + dy, nz = z + dz;
+          if (!inB(nx, ny, nz)) continue;
+          const ni = idx(nx, ny, nz);
+          const t = voxels[ni];
+          if ((t === SAND || t === STONE || t === WOOD) && Math.random() < 0.4) {
+            voxels[ni] = SMOKE;
+            lifeArr[ni] = 15;
+            updated[ni] = 1;
+            lifeArr[i] = Math.max(0, lifeArr[i] - 25);
+            if (lifeArr[i] <= 0) { voxels[i] = EMPTY; return; }
+          }
+        }
+      }
+    }
+  }
+
+  if (y > 0) {
+    const bi = idx(x, y - 1, z);
+    if (voxels[bi] === EMPTY) { swapCells(i, bi); return; }
+    for (const [dx, dz] of shuffledDirs()) {
+      const nx = x + dx, nz = z + dz;
+      if (!inB(nx, y - 1, nz)) continue;
+      const ni = idx(nx, y - 1, nz);
+      if (voxels[ni] === EMPTY) { swapCells(i, ni); return; }
+    }
+  }
+  for (const [dx, dz] of shuffledDirs()) {
+    const nx = x + dx, nz = z + dz;
+    if (!inB(nx, y, nz)) continue;
+    const ni = idx(nx, y, nz);
+    if (voxels[ni] === EMPTY) { swapCells(i, ni); return; }
+  }
+}
+
+function stepPhysics() {
+  updated.fill(0);
+  const flipX = Math.random() < 0.5;
+  const flipZ = Math.random() < 0.5;
+
+  for (let y = 0; y < H; y++) {
+    for (let zi = 0; zi < D; zi++) {
+      const z = flipZ ? D - 1 - zi : zi;
+      for (let xi = 0; xi < W; xi++) {
+        const x = flipX ? W - 1 - xi : xi;
+        const i = idx(x, y, z);
+        if (updated[i]) continue;
+        const t = voxels[i];
+        if (t === EMPTY) continue;
+        switch (t) {
+          case SAND:  updateSand(x, y, z, i);  break;
+          case WATER: updateWater(x, y, z, i); break;
+          case ACID:  updateAcid(x, y, z, i);  break;
+          case FIRE:  updateFire(x, y, z, i);  break;
+          case SMOKE: updateSmoke(x, y, z, i); break;
+        }
+      }
+    }
+  }
+}
+
+/* ==================== 重建 InstancedMesh ==================== */
+let dirty = true;
+
+function rebuildMesh() {
+  let count = 0;
+
+  for (let y = 0; y < H; y++) {
+    for (let z = 0; z < D; z++) {
+      for (let x = 0; x < W; x++) {
+        const i = idx(x, y, z);
+        const t = voxels[i];
+        if (t === EMPTY) continue;
+
+        dummy.position.set(x + 0.5, y + 0.5, z + 0.5);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(count, dummy.matrix);
+
+        let r, g, b;
+        if (t === FIRE) {
+          const lt = Math.min(1, lifeArr[i] / 110);
+          r = 1.0;
+          g = 0.35 + 0.55 * lt;
+          b = 0.05 + 0.2 * lt;
+        } else if (t === SMOKE) {
+          const lt = Math.min(1, lifeArr[i] / 60);
+          const v = 0.25 + 0.35 * lt;
+          r = v; g = v; b = v + 0.04;
+        } else {
+          const m = MAT_MAP[t];
+          const j = (Math.sin(i * 12.9898) * 43758.5453) % 1;
+          const noise = (j - 0.5) * 0.10;
+          r = Math.max(0, Math.min(1, m.color[0] + noise));
+          g = Math.max(0, Math.min(1, m.color[1] + noise));
+          b = Math.max(0, Math.min(1, m.color[2] + noise));
+        }
+        tmpColor.setRGB(r, g, b);
+        mesh.setColorAt(count, tmpColor);
+
+        count++;
+      }
+    }
+  }
+
+  mesh.count = count;
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+
+  dirty = false;
+}
+
+/* ==================== 初始世界 ==================== */
+function initWorld() {
+  // 底层基岩
+  for (let z = 0; z < D; z++) {
+    for (let x = 0; x < W; x++) {
+      voxels[idx(x, 0, z)] = STONE;
+    }
+  }
+  // 沙土地面
+  for (let z = 0; z < D; z++) {
+    for (let x = 0; x < W; x++) {
+      voxels[idx(x, 1, z)] = SAND;
+    }
+  }
+  // 一些起伏
+  for (let z = 4; z < D - 4; z += 3) {
+    for (let x = 4; x < W - 4; x += 3) {
+      const h = 1 + Math.floor(Math.random() * 2);
+      for (let y = 0; y < h; y++) {
+        voxels[idx(x, 2 + y, z)] = STONE;
+      }
+    }
+  }
+  // 一个水坑
+  for (let z = 12; z < 18; z++) {
+    for (let x = 12; x < 18; x++) {
+      voxels[idx(x, 1, z)] = EMPTY;
+      voxels[idx(x, 1, z)] = WATER;
+    }
+  }
+  // 一些树
+  const treePositions = [[6,6],[24,8],[8,24],[24,24]];
+  for (const [tx, tz] of treePositions) {
+    for (let y = 2; y < 6; y++) {
+      voxels[idx(tx, y, tz)] = WOOD;
+    }
+    // 树叶
+    for (let dy = 5; dy <= 7; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          if (Math.abs(dx) + Math.abs(dz) + Math.abs(dy - 6) <= 3) {
+            const nx = tx + dx, ny = dy, nz = tz + dz;
+            if (inB(nx, ny, nz) && voxels[idx(nx, ny, nz)] === EMPTY) {
+              voxels[idx(nx, ny, nz)] = WOOD;  // 用木头当树叶
+            }
+          }
+        }
+      }
+    }
+  }
+  dirty = true;
+}
+
+/* ==================== UI 材质栏 ==================== */
+const paletteEl = document.getElementById('palette');
+for (const m of MATS) {
+  const btn = document.createElement('button');
+  btn.className = 'btn';
+  if (m.id === currentMat) btn.classList.add('active');
+  btn.dataset.mat = m.id;
+  const rgb = m.color.map(v => Math.round(v * 255)).join(',');
+  btn.innerHTML = `<span class="dot" style="background:rgb(${rgb})"></span>${m.name}`;
+  btn.addEventListener('click', () => {
+    currentMat = m.id;
+    document.querySelectorAll('.btn[data-mat]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+  paletteEl.appendChild(btn);
+}
+
+/* 数字键 1-6 快速切换 */
+document.addEventListener('keydown', e => {
+  const n = parseInt(e.key);
+  if (n >= 1 && n <= MATS.length) {
+    currentMat = MATS[n - 1].id;
+    document.querySelectorAll('.btn[data-mat]').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.mat) === currentMat);
+    });
+  }
+});
+
+/* ==================== HUD ==================== */
+const hudPos = document.getElementById('hudPos');
+const hudFps = document.getElementById('hudFps');
+
+/* ==================== 主循环 ==================== */
+let lastTs = 0;
+let fpsAccum = 0, fpsCount = 0, fpsTimer = 0;
+
+function animate(ts) {
+  requestAnimationFrame(animate);
+
+  if (!lastTs) lastTs = ts;
+  const dt = Math.min((ts - lastTs) / 1000, 0.05);
+  lastTs = ts;
+
+  // 玩家
+  if (isLocked) {
+    updatePlayer(dt);
+    handleClick(dt);
+  }
+
+  // 沙盘
+  if (!paused) {
+    stepPhysics();
+    dirty = true;
+  }
+
+  // 渲染准备
+  if (dirty) rebuildMesh();
+  updateHighlight();
+
+  // HUD
+  fpsAccum += dt; fpsCount++; fpsTimer += dt;
+  if (fpsTimer > 0.5) {
+    hudFps.textContent = Math.round(fpsCount / fpsAccum);
+    fpsAccum = 0; fpsCount = 0; fpsTimer = 0;
+  }
+  hudPos.textContent = `${PLAYER.pos.x.toFixed(1)}, ${PLAYER.pos.y.toFixed(1)}, ${PLAYER.pos.z.toFixed(1)}`;
+
+  renderer.render(scene, camera);
+}
+
+/* ==================== 初始化 ==================== */
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+initWorld();
+camera.position.set(PLAYER.pos.x, PLAYER.pos.y + PLAYER.eyeHeight, PLAYER.pos.z);
+
+document.getElementById('loading').classList.add('hide');
+
+requestAnimationFrame(animate);
+
+</script>
+</body>
+</html>

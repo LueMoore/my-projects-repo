@@ -1,0 +1,2563 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>SortLab Matrix · 32 种排序算法 3D 矩阵</title>
+<style>
+  :root{
+    --panel: rgba(255,255,255,.86);
+    --line: rgba(120,105,85,.16);
+    --text: #2c2a26;
+    --muted: #8a8478;
+    --accent: #b9703f;      /* 牛皮纸橙棕 */
+    --accent2: #6f5a44;
+    --paper: #f2f1ed;
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{
+    height:100%; overflow:hidden;
+    background:
+      radial-gradient(1200px 760px at 50% 6%, #ffffff 0%, #f4f3ef 42%, #e8e6e0 100%);
+    color:var(--text);
+    font-family:"Inter","PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  #scene{ position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:grab; }
+  #scene:active{ cursor:grabbing; }
+  /* 明亮展厅：只留极淡的四周压暗，保持通透 */
+  .vignette{ position:fixed; inset:0; pointer-events:none; z-index:2;
+    background: radial-gradient(circle at 50% 46%, rgba(255,255,255,0) 52%, rgba(120,112,98,.10) 100%); }
+  .hud{ position:fixed; inset:0; pointer-events:none; z-index:6; }
+  .hud button, .hud input, .hud .panel{ pointer-events:auto; }
+
+  .brand{ position:absolute; left:24px; top:18px; user-select:none; }
+  .brand h1{ font-size:19px; font-weight:800; letter-spacing:3px;
+    background:linear-gradient(92deg,#3a352d,#7a5f43 55%,#b9703f);
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .brand p{ margin-top:4px; font-size:9.5px; letter-spacing:2.6px; color:var(--muted); }
+  .brand p b{ color:#b9703f; font-weight:600; }
+
+  .keys{ position:absolute; left:24px; bottom:20px; display:flex; gap:14px;
+    font-size:9.5px; letter-spacing:1.2px; color:rgba(110,102,90,.85); }
+  .keys span{ display:flex; align-items:center; gap:5px; }
+  .keys kbd{ font-family:inherit; font-size:9px; padding:2px 5px; border-radius:4px;
+    background:#fff; border:1px solid rgba(120,105,85,.25); color:#4a443a;
+    box-shadow:0 1px 0 rgba(120,105,85,.18); }
+
+  /* ---------- 右侧浮窗 ---------- */
+  .panel{
+    position:absolute; right:18px; top:16px; width:286px;
+    background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:13px;
+    backdrop-filter:blur(18px) saturate(1.1); -webkit-backdrop-filter:blur(18px) saturate(1.1);
+    box-shadow:0 18px 40px -22px rgba(90,78,60,.55), 0 1px 0 rgba(255,255,255,.9) inset;
+  }
+  .fp-cat{ font-size:9px; letter-spacing:2px; color:#9a9284; }
+  .fp-name{ margin-top:3px; font-size:15px; font-weight:700; letter-spacing:1px; color:#2c2a26; }
+  .fp-en{ font-size:9px; letter-spacing:.8px; color:#a49b8c; margin-top:1px; }
+  .fp-meta{ margin-top:8px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px; }
+  .fp-meta div{ font-size:8.5px; color:#968d7e; padding:4px 6px; border-radius:6px; background:rgba(120,105,85,.06); }
+  .fp-meta b{ display:block; margin-top:1px; font-size:10px; color:#6d5a45; font-weight:600; }
+
+  .mini{ margin-top:11px; display:grid; grid-template-columns:repeat(8, 1fr); gap:3px; }
+  .mini i{
+    height:12px; border-radius:3px; background:rgba(120,105,85,.08);
+    border:1px solid rgba(120,105,85,.08); cursor:pointer; transition:.15s;
+  }
+  .mini i.empty{ background:transparent; border-color:transparent; cursor:default; }
+  .mini i:hover{ background:rgba(185,112,63,.30); }
+  .mini i.on{ background:linear-gradient(180deg,#d69a63,#b9703f); border-color:#8f5630;
+    box-shadow:0 2px 6px -2px rgba(143,86,48,.7); }
+
+  .sec{ margin-top:12px; padding-top:11px; border-top:1px solid rgba(120,105,85,.12); }
+  .sec-t{ font-size:9px; letter-spacing:1.8px; color:#a49b8c; margin-bottom:8px; }
+  .row{ display:flex; align-items:center; gap:8px; margin-top:7px; }
+  .row > span{ font-size:9.5px; color:#8a8478; width:34px; flex-shrink:0; letter-spacing:.6px; }
+  .row > b{ font-size:9.5px; color:#6d5a45; width:36px; text-align:right; font-variant-numeric:tabular-nums; }
+  input[type=range]{ -webkit-appearance:none; appearance:none; flex:1; height:3px; border-radius:3px;
+    background:linear-gradient(90deg,rgba(185,112,63,.85),rgba(214,154,99,.55)); outline:none; }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:11px; height:11px; border-radius:50%;
+    background:#fff; border:2px solid #b9703f; cursor:pointer; box-shadow:0 1px 4px rgba(143,86,48,.45); }
+  .btns{ display:flex; gap:6px; margin-top:7px; }
+  .btns button{
+    flex:1; padding:6px 0; border-radius:8px; font-size:10px; letter-spacing:.5px; font-family:inherit;
+    color:#5c5347; background:rgba(120,105,85,.07); border:1px solid rgba(120,105,85,.14); cursor:pointer;
+    transition:.16s; white-space:nowrap;
+  }
+  .btns button:hover{ background:rgba(120,105,85,.14); color:#2c2a26; }
+  .btns button.on{ background:linear-gradient(180deg,#f0dcc8,#e2c3a4);
+    border-color:#c99a6f; color:#5a3f28; }
+  .btns button.primary{ background:linear-gradient(180deg,#c98a58,#a96334); color:#fff;
+    border:none; font-weight:600; box-shadow:0 6px 16px -10px rgba(143,86,48,.95); }
+  .btns button.primary:hover{ filter:brightness(1.06); }
+
+  .legend{ margin-top:11px; display:flex; flex-wrap:wrap; gap:6px 10px; }
+  .legend span{ display:flex; align-items:center; gap:4px; font-size:8.5px; color:#968d7e; }
+  .legend i{ width:7px; height:7px; border-radius:2px; display:block; }
+
+  /* ---------- 单元格地面控制条 ---------- */
+  #panels{ position:fixed; inset:0; pointer-events:none; z-index:5; }
+  /* 控制条不画整块底板，只用极淡的底色 + 顶部分隔线，整体随地面透视贴地 */
+  .cpanel{
+    position:absolute; left:0; top:0;
+    width:352px; height:132px; padding:12px 18px 0;
+    transform-origin:0 0;
+    background:linear-gradient(180deg, rgba(255,255,255,.90), rgba(250,248,244,.62));
+    border-top:2px solid rgba(160,140,115,.45);
+    border-radius:3px;
+    color:#4a443a; pointer-events:auto;
+    opacity:0; transition:opacity .2s;
+    display:none;
+    /* 硬件加速：把 matrix3d 的合成放到 GPU，避免每帧重排引起像素抖动 */
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform-style: preserve-3d;
+    contain: layout style paint;
+  }
+  .cpanel.on{ opacity:1; }
+  .cpanel.dim{ opacity:.45; }
+  .cpanel.focus{ background:linear-gradient(180deg, rgba(255,252,247,.96), rgba(250,244,235,.72));
+    border-top-color:#b9703f; }
+  .cp-h{ display:flex; align-items:center; gap:10px; }
+  .cp-dot{ width:8px; height:8px; border-radius:50%; background:#b9703f; flex-shrink:0; }
+  .cp-h b{ flex:1; min-width:0; font-size:20px; font-weight:600; color:#3a352d;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:.6px; }
+  .cp-b{
+    width:38px; height:34px; border-radius:8px; font-size:19px; line-height:1; padding:0;
+    color:#5c5347; background:rgba(120,105,85,.08); border:1px solid rgba(120,105,85,.18);
+    cursor:pointer; font-family:inherit; flex-shrink:0;
+  }
+  .cp-b:hover{ background:rgba(185,112,63,.22); color:#2c2a26; }
+  .cp-r{ display:flex; align-items:center; gap:12px; margin-top:13px; }
+  .cp-r span{ width:26px; font-size:17px; color:#968d7e; flex-shrink:0; }
+  .cp-r b{ width:56px; font-size:17px; text-align:right; color:#6d5a45; font-variant-numeric:tabular-nums; }
+  .cp-r input[type=range]{ height:6px; background:linear-gradient(90deg,rgba(185,112,63,.9),rgba(214,154,99,.65)); }
+  .cp-r input[type=range]::-webkit-slider-thumb{ width:18px; height:18px; border-width:3px; }
+
+  .caption{
+    position:absolute; left:50%; bottom:22px; transform:translateX(-50%);
+    padding:7px 18px; border-radius:999px; white-space:nowrap; max-width:62vw;
+    overflow:hidden; text-overflow:ellipsis;
+    font-size:11px; letter-spacing:.9px; color:#4a443a;
+    background:rgba(255,255,255,.88); border:1px solid rgba(120,105,85,.18);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    box-shadow:0 10px 26px -18px rgba(90,78,60,.8);
+  }
+  .showcase-tip{
+    position:absolute; left:50%; top:20px; transform:translateX(-50%);
+    padding:6px 16px; border-radius:999px; font-size:10px; letter-spacing:2px;
+    color:#8a5426; background:rgba(255,248,238,.92); border:1px solid rgba(185,112,63,.35);
+    box-shadow:0 8px 20px -14px rgba(143,86,48,.6); opacity:0; transition:opacity .3s;
+  }
+  .showcase-tip.on{ opacity:1; }
+
+  /* ---------- 悬停提示框（亮展厅：白卡片 + 指向模型的小箭头） ---------- */
+  #tooltip{
+    position:fixed; left:0; top:0; z-index:30;
+    width:max-content; max-width:266px;
+    padding:10px 13px 11px; border-radius:12px;
+    background:rgba(255,255,255,.97);
+    border:1px solid rgba(120,105,85,.22);
+    box-shadow:0 16px 38px -18px rgba(90,78,60,.62), 0 1px 0 rgba(255,255,255,.9) inset;
+    color:#4a443a; font-size:10.5px; line-height:1.66; letter-spacing:.3px;
+    pointer-events:none; opacity:0; transform:translateY(5px);
+    transition:opacity .16s ease, transform .16s ease;
+    will-change:left, top;
+  }
+  #tooltip.on{ opacity:1; transform:translateY(0); }
+  #tooltip::after{
+    content:''; position:absolute; left:50%; bottom:-6.5px; margin-left:-6px;
+    width:12px; height:12px; background:#fffefc;
+    border-right:1px solid rgba(120,105,85,.22);
+    border-bottom:1px solid rgba(120,105,85,.22);
+    transform:rotate(45deg); border-radius:0 0 3px 0;
+  }
+  #tooltip b{ display:block; font-size:12.5px; font-weight:700; color:#2c2a26; letter-spacing:.5px; }
+  #tooltip em{ font-style:normal; font-size:9px; font-weight:400; color:#a4907a; margin-left:6px; letter-spacing:.4px; }
+  #tooltip .cx{ margin-top:6px; padding-top:6px; font-size:9px; color:#8a7a65;
+    letter-spacing:.45px; border-top:1px dashed rgba(120,105,85,.22); }
+  #tooltip p{ margin-top:6px; color:#5c5347; }
+
+  @media (max-width:1080px){
+    .panel{ width:250px; }
+    .cpanel{ width:140px; }
+  }
+  @media (max-width:780px){
+    .brand{ left:14px; top:12px; } .brand h1{ font-size:15px; }
+    .brand p{ font-size:8.5px; }
+    .panel{ right:9px; top:10px; width:190px; padding:10px; }
+    .fp-meta{ display:none; }
+    .legend{ display:none; }
+    .keys{ display:none; }
+    .cpanel{ width:126px; }
+    .caption{ font-size:9.5px; max-width:80vw; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div class="vignette"></div>
+<div id="panels"></div>
+<div id="tooltip"></div>
+
+<div class="hud">
+  <div class="brand">
+    <h1>SORT<span>LAB</span> MATRIX</h1>
+    <p>5 大类 · 32 种排序算法 · 3D 网格</p>
+  </div>
+
+  <div class="showcase-tip" id="showcaseTip">全局展示 · 32 种算法同时运行</div>
+
+  <aside class="panel" id="float">
+    <div class="fp-cat" id="fpCat">选择排序类 · 行 1 / 5</div>
+    <div class="fp-name" id="fpName">简单选择排序</div>
+    <div class="fp-en" id="fpEn">Simple Selection</div>
+    <div class="fp-meta">
+      <div>最好<b id="fpBest">O(n²)</b></div>
+      <div>最坏<b id="fpWorst">O(n²)</b></div>
+      <div>空间<b id="fpSpace">O(1)</b></div>
+    </div>
+
+    <div class="mini" id="mini"></div>
+
+    <div class="sec">
+      <div class="sec-t">全局设置</div>
+      <div class="row"><span>数据量</span><input id="gSize" type="range" min="8" max="30" step="1" value="14"><b id="gSizeV">14</b></div>
+      <div class="row"><span>速度</span><input id="gSpeed" type="range" min="0.4" max="4" step="0.1" value="1"><b id="gSpeedV">1.0×</b></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-t">全局操作</div>
+      <div class="btns">
+        <button id="btnAllPlay">全部播放</button>
+        <button id="btnAllReplay">全部重播</button>
+        <button id="btnAllShuffle">全部打乱</button>
+      </div>
+      <div class="btns">
+        <button class="primary" id="btnShowcase">全局展示</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-t">视图</div>
+      <div class="btns">
+        <button id="btnFocus" class="on">聚焦</button>
+        <button id="btnOverview">全景</button>
+        <button id="btnRotate">自动旋转</button>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:#cbb08a"></i>待排序</span>
+      <span><i style="background:#f0b429"></i>比较</span>
+      <span><i style="background:#d94a3d"></i>移动</span>
+      <span><i style="background:#3a6fd8"></i>基准</span>
+      <span><i style="background:#3f9e5a"></i>已归位</span>
+    </div>
+  </aside>
+
+  <div class="caption" id="caption">方向键切换算法 · 每个单元下方有独立控制条</div>
+
+  <div class="keys">
+    <span><kbd>←</kbd><kbd>→</kbd> 同类方法</span>
+    <span><kbd>↑</kbd><kbd>↓</kbd> 前后换类</span>
+    <span><kbd>Space</kbd> 播放/暂停</span>
+    <span><kbd>R</kbd> 打乱</span>
+  </div>
+</div>
+
+<script type="module">
+let THREE;
+try { THREE = await import('./lib/three.module.js'); }
+catch (e) { THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js'); }
+
+/* =====================================================================
+   ==ALGO_START==  纯算法层：无 three.js 依赖，可单独抽出做 Node 校验
+   ===================================================================== */
+const ROW_W    = 26;
+const TABLE_W  = 34;
+const BUCKET_Z = 9.4;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+function rowX(i, n){ return (i - (n - 1) / 2) * (ROW_W / n); }
+function rowCoords(rec){
+  const c = {};
+  rec.order.forEach((id, i) => { c[id] = [rowX(i, rec.n), 0]; });
+  return c;
+}
+function bucketGap(count){ return Math.min(2.95, 28 / Math.max(1, count - 1)); }
+function bucketCoords(rec, buckets, z0, stackGap){
+  const c = rowCoords(rec);
+  const g = bucketGap(buckets.length);
+  buckets.forEach((arr, b) => arr.forEach((id, k) => {
+    c[id] = [(b - (buckets.length - 1) / 2) * g, z0 + k * stackGap];
+  }));
+  return c;
+}
+function slotCoords(rec, slots, z){
+  const c = rowCoords(rec), B = slots.length, sp = TABLE_W / B;
+  slots.forEach((id, k) => { if (id !== null && id !== undefined) c[id] = [(k - (B - 1) / 2) * sp, z || 0]; });
+  return c;
+}
+function twoRowCoords(rec, back, front, zFront){
+  const c = {};
+  back.forEach((id, k) => { c[id] = [rowX(k, rec.n), 0]; });
+  const sp = Math.min(1.7, ROW_W / Math.max(1, front.length));
+  front.forEach((id, k) => { c[id] = [(k - (front.length - 1) / 2) * sp, zFront || 5.5]; });
+  return c;
+}
+function runCoords(rec, rows, output, zBase, zGap){
+  const c = {};
+  output.forEach((id, k) => { c[id] = [rowX(k, rec.n), 0]; });
+  rows.forEach((row, L) => {
+    const sp = Math.min(2.1, ROW_W / Math.max(1, row.length));
+    row.forEach((id, k) => { c[id] = [(k - (row.length - 1) / 2) * sp, (zBase || 4) + L * (zGap || 2.5)]; });
+  });
+  return c;
+}
+function segmentCoords(rec, segments){
+  const c = rowCoords(rec);
+  segments.forEach(s => {
+    for (let k = s.l; k <= s.r; k++) c[rec.order[k]] = [rowX(k, rec.n), 2.2 + s.d * 2.4];
+  });
+  return c;
+}
+function makeBuckets(k){ return Array.from({ length: k }, () => []); }
+
+/* ---------- 步骤记录器 ---------- */
+class Rec {
+  constructor(values){
+    this.values = values;
+    this.n = values.length;
+    this.order = values.map((_, i) => i);
+    this.steps = [];
+    this.done = new Set();
+    this.cmp = 0;
+    this.mov = 0;
+    this.focus = null;
+    this.coordsFn = null;
+    this.padsFn = null;
+    this.pivotFn = null;
+  }
+  v(i){ return this.values[this.order[i]]; }
+  push(o = {}){
+    this.steps.push({
+      coords: o.coords !== undefined ? o.coords : (this.coordsFn ? this.coordsFn() : null),
+      pads:   o.pads   !== undefined ? o.pads   : (this.padsFn   ? this.padsFn()   : null),
+      order:  this.order.slice(),
+      focus:  o.focus  !== undefined ? o.focus  : (this.focus ? this.focus.slice() : null),
+      done:   new Set(this.done),
+      compare:o.compare || null,
+      moved:  o.moved || null,
+      pivot:  o.pivot !== undefined ? o.pivot : (this.pivotFn ? this.pivotFn() : null),
+      cmp:    this.cmp,
+      mov:    this.mov,
+      note:   o.note || ''
+    });
+  }
+  cmpPair(a, b, note, extra = {}){
+    this.cmp++;
+    this.push(Object.assign({ compare: [a, b], note }, extra));
+  }
+  compare(i, j, note, extra = {}){
+    this.cmpPair(this.order[i], this.order[j], note, extra);
+  }
+  swap(i, j, note, extra = {}){
+    const t = this.order[i]; this.order[i] = this.order[j]; this.order[j] = t;
+    this.mov += 2;
+    this.push(Object.assign({ moved: [this.order[i], this.order[j]], note }, extra));
+  }
+  assign(pairs, note, extra = {}){
+    const ids = pairs.map(p => p[1]);
+    for (const [i, id] of pairs) this.order[i] = id;
+    this.mov += pairs.length;
+    this.push(Object.assign({ moved: ids, note }, extra));
+  }
+  setRange(l, ids, note, extra = {}){
+    return this.assign(ids.map((id, k) => [l + k, id]), note, extra);
+  }
+  focusRange(l, r){ this.focus = (l <= r) ? this.order.slice(l, r + 1) : null; }
+  finishFocus(){ this.focus = null; }
+}
+
+/* ---------- 通用归并：把 [l,m] 与 [m+1,r] 有序合并 ---------- */
+function mergeRange(rec, l, m, r, note){
+  const V = id => rec.values[id];
+  const L = rec.order.slice(l, m + 1);
+  const R = rec.order.slice(m + 1, r + 1);
+  const out = [];
+  let a = 0, b = 0;
+  while (a < L.length && b < R.length){
+    rec.cmpPair(L[a], R[b], `比较左右段首：${V(L[a])} 与 ${V(R[b])}`);
+    if (V(L[a]) <= V(R[b])) out.push(L[a++]);
+    else out.push(R[b++]);
+  }
+  while (a < L.length) out.push(L[a++]);
+  while (b < R.length) out.push(R[b++]);
+  rec.setRange(l, out, note || `合并 [${l}, ${r}]，${out.length} 个元素归位`);
+}
+
+/* =====================================================================
+   选择排序类
+   ===================================================================== */
+function algSimpleSelection(rec){
+  const n = rec.n;
+  for (let i = 0; i < n; i++){
+    let min = i;
+    rec.focusRange(i, n - 1);
+    for (let j = i + 1; j < n; j++){
+      rec.compare(j, min, `扫描 a[${j}]，与当前最小值 a[${min}] 比较`);
+      if (rec.v(j) < rec.v(min)){
+        min = j;
+        rec.push({ moved: [rec.order[min]], note: `发现更小值 → 记录下标 ${min}` });
+      }
+    }
+    if (min !== i) rec.swap(i, min, `把最小值放到第 ${i + 1} 位`);
+    rec.done.add(rec.order[i]);
+    rec.push({ note: `第 ${i + 1} 个位置已确定` });
+  }
+  rec.finishFocus();
+}
+
+function algHeap(rec){
+  const n = rec.n, V = id => rec.values[id];
+  rec.focusRange(0, n - 1);
+  function down(root, size, base){
+    while (true){
+      let ch = 2 * root + 1;
+      if (ch >= size) break;
+      if (ch + 1 < size){
+        rec.cmpPair(rec.order[base + ch], rec.order[base + ch + 1], `比较左右孩子 ${ch} 与 ${ch + 1}`);
+        if (V(rec.order[base + ch + 1]) > V(rec.order[base + ch])) ch++;
+      }
+      rec.cmpPair(rec.order[base + root], rec.order[base + ch], `父节点 ${root} 与较大孩子 ${ch} 比较`);
+      if (V(rec.order[base + root]) >= V(rec.order[base + ch])) break;
+      rec.swap(base + root, base + ch, `大孩子上浮 → 交换 ${root} 与 ${ch}`);
+      root = ch;
+    }
+  }
+  for (let i = (n >> 1) - 1; i >= 0; i--){
+    rec.push({ note: `建大顶堆：从节点 ${i} 开始下滤` });
+    down(i, n, 0);
+  }
+  for (let end = n - 1; end > 0; end--){
+    rec.swap(0, end, `堆顶最大值与末尾 a[${end}] 交换`);
+    rec.done.add(rec.order[end]);
+    rec.focusRange(0, end - 1);
+    down(0, end, 0);
+  }
+  rec.done.add(rec.order[0]);
+  rec.finishFocus();
+}
+
+/* 胜者树 / 树形选择：共用淘汰树引擎，mode 控制说明文字 */
+function treeSelectEngine(rec, mode){
+  const n = rec.n, V = id => rec.values[id];
+  let size = 1; while (size < n) size *= 2;
+  const leaves = new Array(size).fill(null);
+  for (let i = 0; i < n; i++) leaves[i] = rec.order[i];
+  const tree = new Array(2 * size).fill(null);
+  const better = (a, b) => {
+    if (a === null) return b;
+    if (b === null) return a;
+    return V(a) <= V(b) ? a : b;
+  };
+  for (let i = 0; i < size; i++) tree[size + i] = leaves[i];
+  for (let i = size - 1; i >= 1; i--) tree[i] = better(tree[2 * i], tree[2 * i + 1]);
+
+  const output = [];
+  rec.coordsFn = () => twoRowCoords(rec, output, leaves.filter(x => x !== null), 5.8);
+  rec.push({ note: mode === 'tree'
+    ? '树形选择：搭建完全二叉树，之后只沿冠军路径更新'
+    : '锦标赛排序：所有叶子进入淘汰赛，逐轮决出最小者' });
+
+  const levels = Math.round(Math.log2(size));
+  for (let lv = 1; lv <= levels; lv++){
+    const start = 2 ** lv;
+    for (let i = start; i < 2 * start; i += 2){
+      const a = tree[i], b = tree[i + 1];
+      if (a !== null && b !== null)
+        rec.cmpPair(a, b, `第 ${lv} 轮淘汰赛：${V(a)} 对 ${V(b)}`);
+    }
+  }
+
+  while (output.length < n){
+    const w = tree[1];
+    if (w === null) break;
+    output.push(w);
+    rec.done.add(w);
+    rec.push({ moved: [w], note: `冠军 ${V(w)} 出线，写入有序序列第 ${output.length} 位` });
+    let leaf = -1;
+    for (let i = 0; i < size; i++) if (leaves[i] === w){ leaf = i; break; }
+    leaves[leaf] = null;
+    tree[size + leaf] = null;
+    let p = size + leaf;
+    while (p > 1){
+      p >>= 1;
+      const a = tree[2 * p], b = tree[2 * p + 1];
+      if (a !== null && b !== null)
+        rec.cmpPair(a, b, mode === 'tree'
+          ? `沿冠军路径重赛：${V(a)} 对 ${V(b)}`
+          : `该分支重新比赛：${V(a)} 对 ${V(b)}`);
+      tree[p] = better(a, b);
+    }
+  }
+  rec.coordsFn = null;
+  rec.order = output.slice();
+  rec.push({ coords: null, note: '所有选手依次出线，序列有序' });
+}
+function algTournament(rec){ treeSelectEngine(rec, 'tournament'); }
+function algTreeSelection(rec){ treeSelectEngine(rec, 'tree'); }
+
+/* 平滑排序：按莱昂纳多数列划分堆森林，每轮从各堆根取最大值。
+   为便于观察，堆边界固定一次划分，只在被交换的堆内下滤（保留 O(1) 额外空间思想）。 */
+function algSmooth(rec){
+  const n = rec.n, V = id => rec.values[id];
+  const leo = [1, 1];
+  for (let i = 2; i < 24; i++) leo.push(leo[i - 1] + leo[i - 2] + 1);
+
+  const blocks = [];
+  let p = 0, m = n;
+  while (m > 0){
+    let k = 0;
+    while (k + 1 < leo.length && leo[k + 1] <= m) k++;
+    while (leo[k] > m) k--;
+    blocks.push({ l: p, r: p + leo[k] });
+    p += leo[k]; m -= leo[k];
+  }
+
+  function down(b, root, len){
+    while (true){
+      let ch = 2 * root + 1;
+      if (ch >= len) break;
+      if (ch + 1 < len){
+        rec.cmpPair(rec.order[b.l + ch], rec.order[b.l + ch + 1], 'Leo 堆：比较左右孩子');
+        if (V(rec.order[b.l + ch + 1]) > V(rec.order[b.l + ch])) ch++;
+      }
+      rec.cmpPair(rec.order[b.l + root], rec.order[b.l + ch], 'Leo 堆：父节点与较大孩子比较');
+      if (V(rec.order[b.l + root]) >= V(rec.order[b.l + ch])) break;
+      rec.swap(b.l + root, b.l + ch, 'Leo 堆：下滤交换');
+      root = ch;
+    }
+  }
+  rec.focusRange(0, n - 1);
+  rec.push({ note: `按莱昂纳多数列把序列划为 ${blocks.length} 个堆：${blocks.map(b => b.r - b.l).join(' + ')}` });
+  for (const b of blocks){
+    rec.push({ note: `构建大小 ${b.r - b.l} 的莱昂纳多堆` });
+    for (let i = ((b.r - b.l) >> 1) - 1; i >= 0; i--) down(b, i, b.r - b.l);
+  }
+  for (let end = n; end > 1; end--){
+    let best = -1;
+    for (const b of blocks){
+      if (b.l >= end) continue;
+      if (best === -1) best = b.l;
+      else {
+        rec.cmpPair(rec.order[best], rec.order[b.l], '比较各莱昂纳多堆的堆根');
+        if (V(rec.order[b.l]) > V(rec.order[best])) best = b.l;
+      }
+    }
+    if (best === -1) break;
+    const owner = blocks.find(b => b.l === best);
+    rec.swap(best, end - 1, `取出全局最大值，放到第 ${end} 位`);
+    rec.done.add(rec.order[end - 1]);
+    rec.focusRange(0, end - 2);
+    const len = Math.min(owner.r, end - 1) - owner.l;
+    if (len > 1) down(owner, 0, len);
+  }
+  rec.done.add(rec.order[0]);
+  rec.finishFocus();
+}
+
+/* 圈排序：先算出每个元素在最终结果中的唯一目标位置（相同值按原顺序），
+   再把该置换分解成若干圈，每圈一次旋转写入，达到理论最少写次数。 */
+function algCycle(rec){
+  const n = rec.n, V = id => rec.values[id];
+  const snapshot = rec.order.slice();
+  const dest = new Array(n);
+  for (let i = 0; i < n; i++){
+    let p = 0;
+    for (let j = 0; j < n; j++){
+      rec.cmp++;
+      if (V(snapshot[j]) < V(snapshot[i]) || (V(snapshot[j]) === V(snapshot[i]) && j < i)) p++;
+    }
+    dest[i] = p;
+    rec.push({ note: `统计 a[${i}] 之前应有 ${p} 个更小元素 → 目标位置 ${p}` });
+  }
+  const used = new Array(n).fill(false);
+  for (let s = 0; s < n; s++){
+    if (used[s]) continue;
+    const cycle = [];
+    let k = s;
+    while (!used[k]){ used[k] = true; cycle.push(k); k = dest[k]; }
+    if (cycle.length <= 1){ rec.done.add(rec.order[s]); continue; }
+    const pairs = cycle.map(i => [dest[i], snapshot[i]]);
+    rec.assign(pairs, `完成长度为 ${cycle.length} 的置换圈：仅 ${cycle.length} 次写入`);
+    for (const i of cycle) rec.done.add(rec.order[dest[i]]);
+  }
+}
+
+/* =====================================================================
+   插入排序类
+   ===================================================================== */
+function algStraightInsertion(rec){
+  const n = rec.n;
+  rec.done.add(rec.order[0]);
+  for (let i = 1; i < n; i++){
+    rec.focusRange(0, i);
+    let j = i;
+    while (j > 0){
+      rec.compare(j - 1, j, `比较 a[${j - 1}] 与待插入元素 a[${j}]`);
+      if (rec.v(j - 1) > rec.v(j)){ rec.swap(j - 1, j, `a[${j}] 更小 → 左移一位`); j--; }
+      else break;
+    }
+    rec.focusRange(0, i);
+    for (let k = 0; k <= i; k++) rec.done.add(rec.order[k]);
+    rec.push({ note: `前 ${i + 1} 个元素已有序` });
+  }
+  rec.finishFocus();
+}
+
+function algBinaryInsertion(rec){
+  const n = rec.n, V = id => rec.values[id];
+  for (let i = 1; i < n; i++){
+    const id = rec.order[i], v = V(id);
+    rec.focusRange(0, i);
+    let lo = 0, hi = i;
+    while (lo < hi){
+      const mid = (lo + hi) >> 1;
+      rec.cmpPair(id, rec.order[mid], `折半查找：区间 [${lo}, ${hi})，中点 ${mid}`);
+      if (v < V(rec.order[mid])) hi = mid; else lo = mid + 1;
+    }
+    const pairs = [];
+    for (let k = i; k > lo; k--) pairs.push([k, rec.order[k - 1]]);
+    pairs.push([lo, id]);
+    rec.assign(pairs, `二分定位到 ${lo}，整体右移后插入 ${v}`);
+    rec.focusRange(0, i);
+    for (let k = 0; k <= i; k++) rec.done.add(rec.order[k]);
+  }
+  rec.finishFocus();
+}
+
+function algShell(rec){
+  const n = rec.n, V = id => rec.values[id];
+  const gaps = [];
+  for (let g = Math.floor(n / 2); g >= 1; g = Math.floor(g / 2)) gaps.push(g);
+  for (const gap of gaps){
+    for (let start = 0; start < gap; start++){
+      const group = [];
+      for (let k = start; k < n; k += gap) group.push(k);
+      rec.focus = group.map(k => rec.order[k]);
+      rec.push({ note: `增量 gap = ${gap}：处理第 ${start + 1} 组（下标 ${start}, ${start + gap}, …）` });
+    }
+    for (let i = gap; i < n; i++){
+      rec.focus = (() => { const a = []; for (let k = i % gap; k < n; k += gap) a.push(rec.order[k]); return a; })();
+      let j = i;
+      while (j >= gap){
+        rec.compare(j - gap, j, `间隔 ${gap} 比较 a[${j - gap}] 与 a[${j}]`);
+        if (V(rec.order[j - gap]) > V(rec.order[j])){
+          rec.swap(j - gap, j, `间隔 ${gap} 交换`);
+          j -= gap;
+        } else break;
+      }
+    }
+  }
+  rec.finishFocus();
+}
+
+/* 图书馆排序：稀疏表始终维持「非空槽按值有序」的不变量；
+   空隙不足时把已有序元素连同新元素一起重新均匀分散。 */
+function algLibrary(rec){
+  const n = rec.n, V = id => rec.values[id];
+  const B = Math.ceil(n * 1.4) + 6;
+  const ids = rec.order.slice();
+  let slots = new Array(B).fill(null);
+
+  function spread(list){
+    slots = new Array(B).fill(null);
+    const step = B / (list.length + 2);
+    list.forEach((x, k) => { slots[Math.floor(step * (k + 1))] = x; });
+  }
+  spread([ids[0]]);
+  rec.coordsFn = () => slotCoords(rec, slots, 1.5);
+  rec.push({ note: `建立 ${B} 个槽位的稀疏表，元素之间预留空隙` });
+
+  for (let t = 1; t < n; t++){
+    const id = ids[t];
+    const occ = [];
+    for (let k = 0; k < B; k++) if (slots[k] !== null) occ.push(k);
+    let lo = 0, hi = occ.length;
+    while (lo < hi){
+      const mid = (lo + hi) >> 1;
+      rec.cmpPair(id, slots[occ[mid]], `折半查找插入位置：槽 ${occ[mid]}`);
+      if (V(id) < V(slots[occ[mid]])) hi = mid; else lo = mid + 1;
+    }
+    const rank = lo;
+    const L = rank === 0 ? -1 : occ[rank - 1];
+    const R = rank === occ.length ? B : occ[rank];
+    let target = -1;
+    for (let s = L + 1; s < R; s++) if (slots[s] === null){ target = s; break; }
+    if (target < 0){
+      const list = occ.map(s => slots[s]);
+      list.splice(rank, 0, id);
+      spread(list);
+      rec.push({ note: `空隙用尽 → 重新均匀分散 ${list.length} 个元素（rebalance）` });
+    } else {
+      slots[target] = id;
+      rec.push({ moved: [id], note: `插入 ${V(id)} → 槽 ${target}（利用空隙，无需整体搬移）` });
+    }
+  }
+  rec.coordsFn = null;
+  const final = [];
+  for (let k = 0; k < B; k++) if (slots[k] !== null) final.push(slots[k]);
+  rec.order = final;
+  rec.push({ coords: null, note: '按槽位顺序收集非空元素，序列有序' });
+}
+
+function algGnome(rec){
+  const n = rec.n, V = id => rec.values[id];
+  let i = 0, guard = 0;
+  rec.focusRange(0, 1);
+  while (i < n && guard++ < 100000){
+    if (i === 0){ i++; rec.push({ note: '花园侏儒：从起点向前走' }); continue; }
+    rec.compare(i - 1, i, `检查相邻花盆 a[${i - 1}] 与 a[${i}]`);
+    if (V(rec.order[i - 1]) <= V(rec.order[i])){
+      i++;
+      rec.push({ note: `顺序正确 → 向前走到 ${i}` });
+    } else {
+      rec.swap(i - 1, i, `顺序错 → 交换并后退到 ${i - 1}`);
+      i--;
+    }
+    rec.focusRange(0, Math.min(n - 1, i + 1));
+  }
+  rec.finishFocus();
+}
+
+/* =====================================================================
+   交换排序类
+   ===================================================================== */
+function algBubble(rec){
+  const n = rec.n, V = id => rec.values[id];
+  for (let end = n - 1; end > 0; end--){
+    rec.focusRange(0, end);
+    let swapped = false;
+    for (let i = 0; i < end; i++){
+      rec.compare(i, i + 1, `比较相邻的 a[${i}] 与 a[${i + 1}]`);
+      if (V(rec.order[i]) > V(rec.order[i + 1])){
+        rec.swap(i, i + 1, `逆序 → 交换 a[${i}] 与 a[${i + 1}]`);
+        swapped = true;
+      }
+    }
+    rec.done.add(rec.order[end]);
+    rec.push({ note: `第 ${n - end} 趟结束，a[${end}] 归位` });
+    if (!swapped){
+      rec.focusRange(0, end);
+      for (let k = 0; k <= end; k++) rec.done.add(rec.order[k]);
+      rec.push({ note: '本轮未发生交换 → 已经有序，提前结束' });
+      break;
+    }
+  }
+  rec.finishFocus();
+}
+
+function algCocktail(rec){
+  const n = rec.n, V = id => rec.values[id];
+  let lo = 0, hi = n - 1, moved = true, pass = 0;
+  while (moved && lo < hi){
+    moved = false; pass++;
+    rec.focusRange(lo, hi);
+    for (let i = lo; i < hi; i++){
+      rec.compare(i, i + 1, `向右趟：比较 a[${i}] 与 a[${i + 1}]`);
+      if (V(rec.order[i]) > V(rec.order[i + 1])){ rec.swap(i, i + 1, '向右冒泡交换'); moved = true; }
+    }
+    rec.done.add(rec.order[hi]); hi--;
+    rec.push({ note: `第 ${pass} 轮向右完成，最大值到达 a[${hi + 1}]` });
+    if (!moved) break;
+    moved = false;
+    rec.focusRange(lo, hi);
+    for (let i = hi; i > lo; i--){
+      rec.compare(i - 1, i, `向左趟：比较 a[${i - 1}] 与 a[${i}]`);
+      if (V(rec.order[i - 1]) > V(rec.order[i])){ rec.swap(i - 1, i, '向左冒泡交换'); moved = true; }
+    }
+    rec.done.add(rec.order[lo]); lo++;
+    rec.push({ note: `第 ${pass} 轮向左完成，最小值到达 a[${lo - 1}]` });
+  }
+  rec.finishFocus();
+}
+
+function algQuick(rec){
+  const V = id => rec.values[id];
+  function q(l, r, depth){
+    if (l >= r){ if (l === r) rec.done.add(rec.order[l]); return; }
+    rec.focus = rec.order.slice(l, r + 1);
+    const pid = rec.order[r];
+    rec.pivotFn = () => [pid];
+    rec.push({ note: `第 ${depth} 层：选 a[${r}] = ${V(pid)} 作基准（Lomuto 划分）` });
+    let i = l;
+    for (let j = l; j < r; j++){
+      rec.cmpPair(rec.order[j], pid, `比较 ${V(rec.order[j])} 与基准 ${V(pid)}`);
+      if (V(rec.order[j]) < V(pid)){
+        if (i !== j) rec.swap(i, j, `小于基准 → 换到左区 a[${i}]`);
+        i++;
+      }
+    }
+    rec.swap(i, r, `基准 ${V(pid)} 归位到 a[${i}]`);
+    rec.done.add(rec.order[i]);
+    q(l, i - 1, depth + 1);
+    q(i + 1, r, depth + 1);
+  }
+  q(0, rec.n - 1, 1);
+  rec.pivotFn = null;
+  rec.finishFocus();
+}
+
+function algQuick3(rec){
+  const V = id => rec.values[id];
+  function q(l, r, depth){
+    if (l >= r){ if (l === r) rec.done.add(rec.order[l]); return; }
+    const pid = rec.order[l], pv = V(pid);
+    rec.focus = rec.order.slice(l, r + 1);
+    rec.pivotFn = () => [pid];
+    rec.push({ note: `第 ${depth} 层：基准 ${pv}，划分 < / = / > 三区` });
+    let lt = l, i = l + 1, gt = r;
+    while (i <= gt){
+      rec.cmpPair(rec.order[i], pid, `a[${i}] = ${V(rec.order[i])} 与基准 ${pv} 比较`);
+      if (V(rec.order[i]) < pv){ rec.swap(lt, i, '放入 < 区'); lt++; i++; }
+      else if (V(rec.order[i]) > pv){ rec.swap(i, gt, '放入 > 区'); gt--; }
+      else { rec.push({ note: `${V(rec.order[i])} 等于基准 → 留在 = 区` }); i++; }
+    }
+    for (let k = lt; k <= gt; k++) rec.done.add(rec.order[k]);
+    rec.push({ note: `= 区 [${lt}, ${gt}] 全部归位，大量重复元素时优势明显` });
+    q(l, lt - 1, depth + 1);
+    q(gt + 1, r, depth + 1);
+  }
+  q(0, rec.n - 1, 1);
+  rec.pivotFn = null;
+  rec.finishFocus();
+}
+
+function algDualPivot(rec){
+  const V = id => rec.values[id];
+  function q(l, r, depth){
+    if (l >= r){ if (l === r) rec.done.add(rec.order[l]); return; }
+    if (V(rec.order[l]) > V(rec.order[r])) rec.swap(l, r, '确保 p1 ≤ p2');
+    const p1 = rec.order[l], p2 = rec.order[r];
+    rec.focus = rec.order.slice(l, r + 1);
+    rec.pivotFn = () => [p1, p2];
+    rec.push({ note: `第 ${depth} 层：双基准 p1=${V(p1)}, p2=${V(p2)}（Java Dual-Pivot）` });
+    let lt = l + 1, i = l + 1, gt = r - 1;
+    while (i <= gt){
+      rec.cmpPair(rec.order[i], p1, `a[${i}] = ${V(rec.order[i])} 与 p1=${V(p1)} 比较`);
+      if (V(rec.order[i]) < V(p1)){ rec.swap(lt, i, '放入 < p1 区'); lt++; i++; }
+      else {
+        rec.cmpPair(rec.order[i], p2, `a[${i}] 与 p2=${V(p2)} 比较`);
+        if (V(rec.order[i]) > V(p2)){ rec.swap(i, gt, '放入 > p2 区'); gt--; }
+        else { rec.push({ note: '落在中间区，指针前进' }); i++; }
+      }
+    }
+    lt--; gt++;
+    rec.swap(l, lt, 'p1 归位');
+    rec.swap(r, gt, 'p2 归位');
+    rec.done.add(rec.order[lt]); rec.done.add(rec.order[gt]);
+    q(l, lt - 1, depth + 1);
+    q(lt + 1, gt - 1, depth + 1);
+    q(gt + 1, r, depth + 1);
+  }
+  q(0, rec.n - 1, 1);
+  rec.pivotFn = null;
+  rec.finishFocus();
+}
+
+function algComb(rec){
+  const n = rec.n, V = id => rec.values[id];
+  let gap = n, swapped = true, pass = 0;
+  while (gap > 1 || swapped){
+    gap = Math.max(1, Math.floor(gap / 1.3));
+    swapped = false; pass++;
+    for (let i = 0; i + gap < n; i++){
+      rec.compare(i, i + gap, `间距 ${gap}：比较 a[${i}] 与 a[${i + gap}]`);
+      if (V(rec.order[i]) > V(rec.order[i + gap])){
+        rec.swap(i, i + gap, '逆序 → 长距离交换，快速消除小乌龟');
+        swapped = true;
+      }
+    }
+    rec.push({ note: `第 ${pass} 趟：收缩因子 1.3，gap = ${gap}` });
+  }
+}
+
+function algOddEven(rec){
+  const n = rec.n, V = id => rec.values[id];
+  for (let phase = 0; phase < n; phase++){
+    const parity = phase % 2;
+    const heads = [];
+    for (let i = parity; i + 1 < n; i += 2) heads.push(rec.order[i], rec.order[i + 1]);
+    rec.cmp += heads.length / 2;
+    rec.push({ compare: heads, note: `第 ${phase + 1} 轮 ${parity ? '奇' : '偶'}阶段：所有 (i, i+1) 对并行比较` });
+    const pairs = [];
+    for (let i = parity; i + 1 < n; i += 2){
+      if (V(rec.order[i]) > V(rec.order[i + 1])){
+        pairs.push([i, rec.order[i + 1]], [i + 1, rec.order[i]]);
+      }
+    }
+    if (pairs.length) rec.assign(pairs, `并行交换 ${pairs.length / 2} 个逆序对`);
+    else rec.push({ note: '本轮无需交换' });
+  }
+}
+
+/* =====================================================================
+   归并排序类
+   ===================================================================== */
+function algMerge2(rec){
+  function ms(l, r, d){
+    if (l >= r) return;
+    const m = (l + r) >> 1;
+    ms(l, m, d + 1); ms(m + 1, r, d + 1);
+    rec.focusRange(l, r);
+    rec.push({ note: `第 ${d} 层：准备二路归并 [${l}, ${r}]` });
+    mergeRange(rec, l, m, r);
+    rec.finishFocus();
+  }
+  ms(0, rec.n - 1, 1);
+}
+
+function algTopDownMerge(rec){
+  const n = rec.n;
+  let segs = [{ l: 0, r: n - 1, d: 0 }];
+  rec.coordsFn = () => segmentCoords(rec, segs);
+  function split(seg){
+    if (seg.l >= seg.r) return;
+    const m = (seg.l + seg.r) >> 1;
+    const a = { l: seg.l, r: m, d: seg.d + 1 };
+    const b = { l: m + 1, r: seg.r, d: seg.d + 1 };
+    segs = segs.filter(s => s !== seg); segs.push(a, b);
+    rec.push({ note: `自顶向下拆分 [${seg.l}, ${seg.r}] → [${a.l}, ${a.r}] + [${b.l}, ${b.r}]（深度 ${a.d}）` });
+    split(a); split(b);
+    mergeRange(rec, seg.l, m, seg.r, `把两段合并回 [${seg.l}, ${seg.r}]`);
+    segs = segs.filter(s => s !== a && s !== b); segs.push(seg);
+    rec.push({ note: `[${seg.l}, ${seg.r}] 归并完成，回到深度 ${seg.d}` });
+  }
+  split(segs[0]);
+  rec.coordsFn = null;
+  rec.push({ coords: null, note: '递归归并完成，所有段回到主序列' });
+}
+
+function algBottomUpMerge(rec){
+  const n = rec.n;
+  let width = 1, round = 0;
+  while (width < n){
+    round++;
+    rec.push({ note: `自底向上第 ${round} 轮：段长 ${width}，相邻成对归并` });
+    for (let l = 0; l + width < n; l += 2 * width){
+      const m = l + width - 1;
+      const r = Math.min(l + 2 * width - 1, n - 1);
+      rec.focusRange(l, r);
+      mergeRange(rec, l, m, r, `归并 [${l}, ${m}] 与 [${m + 1}, ${r}]`);
+    }
+    width *= 2;
+  }
+  rec.finishFocus();
+}
+
+function algMultiwayMerge(rec){
+  const n = rec.n, V = id => rec.values[id];
+  const K = clamp(Math.ceil(n / 8), 2, 4);
+  const bounds = [];
+  for (let k = 0; k < K; k++){
+    bounds.push({ l: Math.floor(n * k / K), r: Math.floor(n * (k + 1) / K) - 1 });
+  }
+  for (let bi = 0; bi < bounds.length; bi++){
+    const { l, r } = bounds[bi];
+    rec.focusRange(l, r);
+    for (let i = l + 1; i <= r; i++){
+      let j = i;
+      while (j > l){
+        rec.compare(j - 1, j, `第 ${bi + 1} 段内部插入排序`);
+        if (V(rec.order[j - 1]) > V(rec.order[j])){ rec.swap(j - 1, j); j--; }
+        else break;
+      }
+    }
+    rec.push({ note: `第 ${bi + 1} 段已内部有序` });
+  }
+  rec.finishFocus();
+  const runs = bounds.map(b => rec.order.slice(b.l, b.r + 1));
+  const idx = new Array(K).fill(0);
+  const out = [];
+  rec.coordsFn = () => runCoords(rec, runs.map((run, k) => run.slice(idx[k])), out, 4.0, 2.5);
+  rec.push({ note: `${K} 路归并开始：每段作为一条输入带` });
+  while (out.length < n){
+    let best = -1;
+    for (let k = 0; k < K; k++){
+      if (idx[k] < runs[k].length){
+        if (best === -1) best = k;
+        else {
+          rec.cmp++;
+          if (V(runs[k][idx[k]]) < V(runs[best][idx[best]])) best = k;
+        }
+      }
+    }
+    if (best < 0) break;
+    const id = runs[best][idx[best]++];
+    out.push(id);
+    rec.push({ moved: [id], note: `扫描 ${K} 个段首 → 取最小 ${V(id)} 写入输出带` });
+  }
+  rec.coordsFn = null;
+  rec.order = out.slice();
+  rec.push({ coords: null, note: '多路归并完成' });
+}
+
+function algExternalMerge(rec){
+  const n = rec.n, V = id => rec.values[id];
+  const P = clamp(Math.ceil(n / 10), 2, 5);
+  const bounds = [];
+  for (let k = 0; k < P; k++){
+    bounds.push({ l: Math.floor(n * k / P), r: Math.floor(n * (k + 1) / P) - 1 });
+  }
+  rec.push({ note: `外部归并：数据分成 ${P} 个磁盘页，逐页载入内存排序后写回` });
+  for (let bi = 0; bi < bounds.length; bi++){
+    const { l, r } = bounds[bi];
+    rec.focusRange(l, r);
+    for (let i = l + 1; i <= r; i++){
+      let j = i;
+      while (j > l){
+        rec.compare(j - 1, j, `内存排序第 ${bi + 1} 页`);
+        if (V(rec.order[j - 1]) > V(rec.order[j])){ rec.swap(j - 1, j); j--; }
+        else break;
+      }
+    }
+    rec.push({ note: `第 ${bi + 1} 页有序，写回磁盘（顺序写）` });
+  }
+  rec.finishFocus();
+  const pages = bounds.map(b => rec.order.slice(b.l, b.r + 1));
+  const ptr = new Array(P).fill(0);
+  const buffer = [];
+  const out = [];
+  rec.coordsFn = () => {
+    const c = {};
+    out.forEach((id, k) => { c[id] = [rowX(k, rec.n), 0]; });
+    buffer.forEach((item, k) => { c[item.id] = [(k - (buffer.length - 1) / 2) * 2.0, 4.2]; });
+    pages.forEach((page, pi) => {
+      const rest = page.slice(ptr[pi]);
+      const sp = Math.min(2.1, ROW_W / Math.max(1, rest.length));
+      rest.forEach((id, k) => { c[id] = [(k - (rest.length - 1) / 2) * sp, 8.0 + pi * 2.3]; });
+    });
+    return c;
+  };
+  for (let k = 0; k < P; k++){
+    if (ptr[k] < pages[k].length) buffer.push({ id: pages[k][ptr[k]++], page: k });
+  }
+  rec.push({ note: '每页读一个元素进入内存缓冲区（顺序 I/O）' });
+  while (out.length < n){
+    let best = 0;
+    for (let k = 1; k < buffer.length; k++){
+      rec.cmp++;
+      if (V(buffer[k].id) < V(buffer[best].id)) best = k;
+    }
+    rec.push({ compare: buffer.map(x => x.id), note: `缓冲区中选择最小 ${V(buffer[best].id)}` });
+    const item = buffer.splice(best, 1)[0];
+    out.push(item.id);
+    rec.push({ moved: [item.id], note: `最小元素写入输出带第 ${out.length} 位` });
+    if (ptr[item.page] < pages[item.page].length){
+      buffer.push({ id: pages[item.page][ptr[item.page]++], page: item.page });
+      rec.push({ note: `第 ${item.page + 1} 页补充下一个元素到缓冲区` });
+    }
+  }
+  rec.coordsFn = null;
+  rec.order = out.slice();
+  rec.push({ coords: null, note: '外部归并完成：只需一次顺序读 + 一次顺序写' });
+}
+
+function algParallelMerge(rec){
+  const n = rec.n, V = id => rec.values[id];
+  let width = 1, round = 0;
+  while (width < n){
+    const A = rec.order.slice();
+    const tasks = [];
+    for (let l = 0; l < n; l += 2 * width){
+      const m = Math.min(l + width, n), r = Math.min(l + 2 * width, n);
+      if (m < r) tasks.push({ l, m, A: A.slice(l, m), B: A.slice(m, r), out: [] });
+    }
+    rec.coordsFn = () => {
+      const c = rowCoords(rec);
+      for (const t of tasks){
+        t.A.forEach((id, k) => { c[id] = [rowX(t.l + k, n), 4.0]; });
+        t.B.forEach((id, k) => { c[id] = [rowX(t.m + k, n), 7.0]; });
+      }
+      return c;
+    };
+    round++;
+    rec.push({ note: `并行第 ${round} 轮：${tasks.length} 对长度为 ${width} 的段同时归并` });
+    const heads = [];
+    for (const t of tasks){
+      rec.cmp++;
+      heads.push(t.A[0], t.B[0]);
+    }
+    rec.push({ compare: heads, note: `${tasks.length} 个处理单元并行比较各自段首` });
+    for (const t of tasks){
+      let i = 0, j = 0;
+      while (i < t.A.length && j < t.B.length){
+        rec.cmp++;
+        if (V(t.A[i]) <= V(t.B[j])) t.out.push(t.A[i++]); else t.out.push(t.B[j++]);
+      }
+      while (i < t.A.length) t.out.push(t.A[i++]);
+      while (j < t.B.length) t.out.push(t.B[j++]);
+    }
+    const writes = [];
+    for (const t of tasks) t.out.forEach((id, k) => writes.push([t.l + k, id]));
+    rec.coordsFn = null;
+    rec.assign(writes, `第 ${round} 轮完成：所有段对同时写回主序列`, { coords: null });
+    width *= 2;
+  }
+}
+
+function rotateMerge(rec, l, m, r){
+  const V = id => rec.values[id];
+  let i = l, j = m + 1, guard = 0;
+  while (i <= m && j <= r && guard++ < 100000){
+    rec.cmpPair(rec.order[i], rec.order[j], `块归并：比较两段段首 ${V(rec.order[i])} 与 ${V(rec.order[j])}`);
+    if (V(rec.order[i]) <= V(rec.order[j])) i++;
+    else {
+      const id = rec.order[j];
+      const pairs = [];
+      for (let k = j; k > i; k--) pairs.push([k, rec.order[k - 1]]);
+      pairs.push([i, id]);
+      rec.assign(pairs, `原地旋转 [${i}, ${j}]，把 ${V(id)} 放到前面`);
+      i++; m++; j++;
+    }
+  }
+}
+
+function algTimSort(rec){
+  const n = rec.n, V = id => rec.values[id];
+  const MIN = 8;
+  const runs = [];
+  let i = 0;
+  while (i < n){
+    let j = i + 1;
+    const descending = j < n && V(rec.order[j]) < V(rec.order[i]);
+    if (descending){
+      while (j < n && V(rec.order[j]) < V(rec.order[j - 1])) j++;
+      const pairs = [];
+      for (let k = i; k < j; k++) pairs.push([k, rec.order[j - 1 - (k - i)]]);
+      rec.assign(pairs, `识别降序自然 run [${i}, ${j - 1}] → 就地反转`);
+    } else {
+      while (j < n && V(rec.order[j]) >= V(rec.order[j - 1])) j++;
+      rec.push({ focus: rec.order.slice(i, j), note: `识别升序自然 run [${i}, ${j - 1}]，长度 ${j - i}` });
+    }
+    const end = Math.min(n, Math.max(j, i + MIN));
+    if (end > j){
+      rec.focusRange(i, end - 1);
+      for (let k = j; k < end; k++){
+        let t = k;
+        while (t > i){
+          rec.compare(t - 1, t, `短 run 用插入排序补齐到 minrun=${MIN}`);
+          if (V(rec.order[t - 1]) > V(rec.order[t])){ rec.swap(t - 1, t); t--; }
+          else break;
+        }
+      }
+      rec.push({ note: `run 扩展到长度 ${end - i}` });
+    }
+    runs.push({ l: i, r: end - 1 });
+    i = end;
+  }
+  rec.finishFocus();
+  let cur = runs, round = 0;
+  while (cur.length > 1){
+    round++;
+    const next = [];
+    for (let k = 0; k < cur.length; k += 2){
+      if (k + 1 < cur.length){
+        const a = cur[k], b = cur[k + 1];
+        rec.push({ focus: rec.order.slice(a.l, b.r + 1), note: `第 ${round} 轮按栈策略合并相邻 run` });
+        mergeRange(rec, a.l, a.r, b.r, `TimSort 归并 [${a.l}, ${a.r}] + [${b.l}, ${b.r}]`);
+        next.push({ l: a.l, r: b.r });
+      } else next.push(cur[k]);
+    }
+    cur = next;
+  }
+  rec.finishFocus();
+}
+
+function algBlockSort(rec){
+  const n = rec.n, V = id => rec.values[id];
+  const B = Math.max(2, Math.floor(Math.sqrt(n)));
+  rec.push({ note: `Block Sort：块大小 √n ≈ ${B}，块内先局部排序，再用旋转原地归并` });
+  for (let l = 0; l < n; l += B){
+    const r = Math.min(n - 1, l + B - 1);
+    rec.focusRange(l, r);
+    for (let i = l + 1; i <= r; i++){
+      let j = i;
+      while (j > l){
+        rec.compare(j - 1, j, `块 [${l}, ${r}] 内插入排序`);
+        if (V(rec.order[j - 1]) > V(rec.order[j])){ rec.swap(j - 1, j); j--; }
+        else break;
+      }
+    }
+    rec.push({ note: `块 [${l}, ${r}] 已局部有序` });
+  }
+  let width = B, round = 0;
+  while (width < n){
+    round++;
+    for (let l = 0; l + width < n; l += 2 * width){
+      const m = Math.min(l + width - 1, n - 1);
+      const r = Math.min(l + 2 * width - 1, n - 1);
+      if (m < r){
+        rec.focusRange(l, r);
+        rec.push({ note: `第 ${round} 轮：原地归并相邻块 [${l}, ${m}] + [${m + 1}, ${r}]` });
+        rotateMerge(rec, l, m, r);
+      }
+    }
+    width *= 2;
+  }
+  rec.finishFocus();
+}
+
+/* =====================================================================
+   基数 / 分配排序类
+   ===================================================================== */
+function setBucketView(rec, buckets, labels, activeRef, stackGap, z0){
+  rec.coordsFn = () => bucketCoords(rec, buckets, z0 || BUCKET_Z, stackGap);
+  rec.padsFn = () => ({ count: buckets.length, labels, active: activeRef.v, xGap: bucketGap(buckets.length) });
+}
+function clearBucketView(rec){ rec.coordsFn = null; rec.padsFn = null; }
+
+function algLsdRadix(rec){
+  const n = rec.n, V = id => rec.values[id];
+  let max = 0; for (const v of rec.values) if (v > max) max = v;
+  const labels = Array.from({ length: 10 }, (_, b) => String(b));
+  let pass = 0;
+  for (let exp = 1; Math.floor(max / exp) > 0; exp *= 10){
+    pass++;
+    const place = exp === 1 ? '个' : exp === 10 ? '十' : '百';
+    const buckets = makeBuckets(10);
+    const counts = new Array(10).fill(0);
+    for (let i = 0; i < n; i++) counts[Math.floor(V(rec.order[i]) / exp) % 10]++;
+    const stackGap = Math.min(0.9, 7 / Math.max(1, ...counts));
+    const active = { v: -1 };
+    setBucketView(rec, buckets, labels, active, stackGap);
+    rec.push({ note: `LSD 第 ${pass} 趟：按${place}位分配到 0~9 号桶` });
+    for (let i = 0; i < n; i++){
+      const id = rec.order[i];
+      const d = Math.floor(V(id) / exp) % 10;
+      buckets[d].push(id); active.v = d; rec.mov++;
+      rec.push({ moved: [id], note: `第 ${pass} 趟 · ${place}位是 ${d} → 放入 ${d} 号桶` });
+    }
+    rec.order = buckets.flat();
+    clearBucketView(rec);
+    rec.push({ coords: null, pads: null, note: `按${place}位收集：从 0 号桶依次取到 9 号桶` });
+  }
+}
+
+function algMsdRadix(rec){
+  const n = rec.n, V = id => rec.values[id];
+  let max = 0; for (const v of rec.values) if (v > max) max = v;
+  let exp = 1; while (exp * 10 <= max) exp *= 10;
+  const labels = Array.from({ length: 10 }, (_, b) => String(b));
+
+  function sortSub(list, e, depth){
+    if (list.length <= 1 || e < 1) return list.slice();
+    const buckets = makeBuckets(10);
+    const active = { v: -1 };
+    const stackGap = Math.min(0.9, 7 / Math.max(1, list.length / 4));
+    rec.coordsFn = () => {
+      const c = rowCoords(rec);
+      const g = bucketGap(10);
+      buckets.forEach((arr, b) => arr.forEach((id, k) => {
+        c[id] = [(b - 4.5) * g, BUCKET_Z + k * stackGap];
+      }));
+      return c;
+    };
+    rec.padsFn = () => ({ count: 10, labels, active: active.v, xGap: bucketGap(10) });
+    rec.push({ note: `MSD 第 ${depth + 1} 层：按 ${e} 位分配 ${list.length} 个元素` });
+    for (const id of list){
+      const d = Math.floor(V(id) / e) % 10;
+      buckets[d].push(id); active.v = d; rec.mov++;
+      rec.push({ moved: [id], note: `${V(id)} 的最高位 ${d} → ${d} 号桶` });
+    }
+    const result = [];
+    for (let b = 0; b < 10; b++){
+      const sub = buckets[b];
+      if (sub.length > 1 && e >= 10) result.push(...sortSub(sub, Math.floor(e / 10), depth + 1));
+      else {
+        for (let i = 1; i < sub.length; i++){
+          let t = i;
+          while (t > 0){
+            rec.cmp++;
+            rec.push({ compare: [sub[t - 1], sub[t]], note: `桶 ${b} 内收尾排序` });
+            if (V(sub[t - 1]) > V(sub[t])){
+              const tmp = sub[t - 1]; sub[t - 1] = sub[t]; sub[t] = tmp; t--;
+            } else break;
+          }
+        }
+        result.push(...sub);
+      }
+    }
+    clearBucketView(rec);
+    rec.push({ coords: null, pads: null, note: `第 ${depth + 1} 层递归返回，按桶序拼接` });
+    return result;
+  }
+  rec.order = sortSub(rec.order.slice(), exp, 0);
+}
+
+function algCounting(rec){
+  const n = rec.n, V = id => rec.values[id];
+  let max = 0; for (const v of rec.values) if (v > max) max = v;
+  const count = new Array(max + 1).fill(0);
+  const buckets = makeBuckets(10);
+  const labels = Array.from({ length: 10 }, (_, b) => `${b * 10}~${b * 10 + 9}`);
+  const active = { v: -1 };
+  const placed = {};
+  const stackGap = Math.min(0.9, 7 / Math.max(1, n / 4));
+  rec.coordsFn = () => {
+    const c = bucketCoords(rec, buckets, BUCKET_Z, stackGap);
+    for (const key in placed) c[key] = [rowX(placed[key], n), 0];
+    return c;
+  };
+  rec.padsFn = () => ({ count: 10, labels, active: active.v, xGap: bucketGap(10) });
+  rec.push({ note: `值域 0~${max}：初始化计数数组（画面按 10 个十进制区间分组展示）` });
+  for (let i = 0; i < n; i++){
+    const id = rec.order[i], v = V(id);
+    count[v]++;
+    active.v = Math.min(9, Math.floor(v / 10));
+    buckets[active.v].push(id);
+    rec.mov++;
+    rec.push({ moved: [id], note: `${v} 出现 → count[${v}] = ${count[v]}` });
+  }
+  for (let v = 1; v <= max; v++) count[v] += count[v - 1];
+  rec.push({ note: '对计数数组求前缀和：count[v] 即值 v 的终止位置' });
+  const output = new Array(n).fill(null);
+  for (let i = n - 1; i >= 0; i--){
+    const id = rec.order[i], v = V(id);
+    const k = --count[v];
+    output[k] = id;
+    placed[id] = k;
+    rec.push({ moved: [id], note: `${v} 直接定位到输出位置 ${k}（稳定：逆序扫描）` });
+  }
+  clearBucketView(rec);
+  rec.order = output;
+  rec.push({ coords: null, pads: null, note: '计数排序完成：元素之间不比较，只按值定位' });
+}
+
+function algBucket(rec){
+  const n = rec.n, V = id => rec.values[id];
+  const K = 10;
+  const buckets = makeBuckets(K);
+  const labels = Array.from({ length: K }, (_, b) => `${b * 10}~${b * 10 + 9}`);
+  const active = { v: -1 };
+  const stackGap = Math.min(0.9, 7 / Math.max(1, n / 4));
+  setBucketView(rec, buckets, labels, active, stackGap);
+  rec.push({ note: '按值域把序列均匀映射到 10 个桶' });
+  for (let i = 0; i < n; i++){
+    const id = rec.order[i], v = V(id);
+    const b = Math.min(K - 1, Math.floor(v / 10));
+    buckets[b].push(id); active.v = b; rec.mov++;
+    rec.push({ moved: [id], note: `${v} → 桶 ${b}（${labels[b]}）` });
+  }
+  for (let b = 0; b < K; b++){
+    const arr = buckets[b];
+    for (let i = 1; i < arr.length; i++){
+      let t = i;
+      while (t > 0){
+        rec.cmp++;
+        rec.push({ compare: [arr[t - 1], arr[t]], note: `桶 ${b} 内做插入排序` });
+        if (V(arr[t - 1]) > V(arr[t])){
+          const tmp = arr[t - 1]; arr[t - 1] = arr[t]; arr[t] = tmp; t--;
+        } else break;
+      }
+    }
+  }
+  rec.order = buckets.flat();
+  clearBucketView(rec);
+  rec.push({ coords: null, pads: null, note: '按桶序依次收集，桶内已各自有序' });
+}
+
+function algPigeonhole(rec){
+  const n = rec.n, V = id => rec.values[id];
+  let min = Infinity, max = -Infinity;
+  for (const v of rec.values){ if (v < min) min = v; if (v > max) max = v; }
+  const holes = Array.from({ length: max - min + 1 }, () => []);
+  const groups = makeBuckets(10);
+  const labels = Array.from({ length: 10 }, (_, b) => `${b * 10}~${b * 10 + 9}`);
+  const active = { v: -1 };
+  const stackGap = Math.min(0.9, 7 / Math.max(1, n / 4));
+  setBucketView(rec, groups, labels, active, stackGap);
+  rec.push({ note: `值域 [${min}, ${max}]，共 ${holes.length} 个鸽巢（画面按十进制区间分组）` });
+  for (let i = 0; i < n; i++){
+    const id = rec.order[i], v = V(id);
+    holes[v - min].push(id);
+    active.v = Math.min(9, Math.floor(v / 10));
+    groups[active.v].push(id);
+    rec.mov++;
+    rec.push({ moved: [id], note: `${v} → 鸽巢 holes[${v - min}]` });
+  }
+  const out = [];
+  for (let h = 0; h < holes.length; h++) out.push(...holes[h]);
+  rec.order = out;
+  clearBucketView(rec);
+  rec.push({ coords: null, pads: null, note: '按鸽巢编号从小到大依次取出，完成排序' });
+}
+
+function algFlash(rec){
+  const n = rec.n, V = id => rec.values[id];
+  let min = Infinity, max = -Infinity;
+  for (const v of rec.values){ if (v < min) min = v; if (v > max) max = v; }
+  const M = clamp(Math.floor(n * 0.45), 2, 8);
+  if (max === min) return;
+  const classOf = v => Math.min(M - 1, Math.floor((v - min) * M / (max - min + 1)));
+  const cnt = new Array(M).fill(0);
+  const groups = makeBuckets(M);
+  const labels = Array.from({ length: M }, (_, b) => `C${b + 1}`);
+  const active = { v: -1 };
+  const stackGap = Math.min(0.9, 7 / Math.max(1, n / 3));
+  setBucketView(rec, groups, labels, active, stackGap);
+  rec.push({ note: `FlashSort：按值域线性划分 ${M} 个类，值 [${min}, ${max}]` });
+  for (let i = 0; i < n; i++){
+    const id = rec.order[i], c = classOf(V(id));
+    cnt[c]++; groups[c].push(id); active.v = c; rec.mov++;
+    rec.push({ moved: [id], note: `${V(id)} → 类 C${c + 1}（计数 ${cnt[c]}）` });
+  }
+  const start = [];
+  let acc = 0;
+  for (let c = 0; c < M; c++){ start.push(acc); acc += cnt[c]; }
+  rec.push({ note: '前缀和得到每个类段的起始下标 L[k]' });
+
+  const cur = start.slice();
+  const pairs = [];
+  for (let i = 0; i < n; i++){
+    const id = rec.order[i];
+    pairs.push([cur[classOf(V(id))]++, id]);
+  }
+  clearBucketView(rec);
+  rec.assign(pairs, '循环置换：把每个元素一次搬到对应类段', { coords: null, pads: null });
+  for (let c = 0; c < M; c++){
+    const l = start[c], r = (c + 1 < M ? start[c + 1] : n) - 1;
+    rec.focusRange(l, r);
+    for (let i = l + 1; i <= r; i++){
+      let j = i;
+      while (j > l){
+        rec.compare(j - 1, j, `类 C${c + 1} 内插入排序收尾`);
+        if (V(rec.order[j - 1]) > V(rec.order[j])){ rec.swap(j - 1, j); j--; }
+        else break;
+      }
+    }
+  }
+  rec.finishFocus();
+}
+
+/* ---------- 分发表 ---------- */
+const ALGO_FN = {
+  simpleSelection: algSimpleSelection, heap: algHeap, tournament: algTournament,
+  treeSelection: algTreeSelection, smooth: algSmooth, cycle: algCycle,
+  straightInsertion: algStraightInsertion, binaryInsertion: algBinaryInsertion,
+  shell: algShell, library: algLibrary, gnome: algGnome,
+  bubble: algBubble, cocktail: algCocktail, quick: algQuick, quick3: algQuick3,
+  dualPivot: algDualPivot, comb: algComb, oddEven: algOddEven,
+  merge2: algMerge2, multiway: algMultiwayMerge, topDown: algTopDownMerge,
+  bottomUp: algBottomUpMerge, timsort: algTimSort, external: algExternalMerge,
+  parallel: algParallelMerge, block: algBlockSort,
+  lsd: algLsdRadix, msd: algMsdRadix, counting: algCounting,
+  bucket: algBucket, pigeonhole: algPigeonhole, flash: algFlash
+};
+
+function buildSteps(kind, values){
+  const rec = new Rec(values);
+  (ALGO_FN[kind] || algSimpleSelection)(rec);
+  rec.coordsFn = null; rec.padsFn = null; rec.pivotFn = null; rec.focus = null;
+  for (let i = 0; i < values.length; i++) rec.done.add(i);
+  rec.push({ coords: null, pads: null, note: '排序完成 ✓' });
+  return rec.steps;
+}
+/* ==ALGO_END== */
+
+/* =====================================================================
+   元数据：5 大类 / 32 种
+   ===================================================================== */
+function A(id, name, en, c, desc, cam){
+  const [best, avg, worst, space, stable] = c;
+  return { id, name, en, best, avg, worst, space, stable, desc, cam: cam || 'base' };
+}
+const CATS = [
+  { key:'selection', name:'选择排序类', items:[
+    A('simpleSelection','简单选择排序','Simple Selection',['O(n²)','O(n²)','O(n²)','O(1)','不稳定'],
+      '每轮扫描未排序区间找出最小值与首位交换。比较次数固定为 n(n-1)/2，交换次数最少。'),
+    A('heap','堆排序','Heap Sort',['O(n log n)','O(n log n)','O(n log n)','O(1)','不稳定'],
+      '把数组看成完全二叉树，建成大顶堆后反复把堆顶最大值与末尾交换并下滤。画面中黄色为孩子比较。'),
+    A('tournament','锦标赛排序','Tournament Sort',['O(n log n)','O(n log n)','O(n log n)','O(n)','稳定'],
+      '所有元素作为叶子进入完全二叉树淘汰赛，逐轮决出最小者；冠军出线后只重赛它所在的路径。前排为选手，后排为已出线序列。','levels'),
+    A('treeSelection','树形选择排序','Tree Selection Sort',['O(n log n)','O(n log n)','O(n log n)','O(n)','稳定'],
+      '与锦标赛排序同源，用选择树保留每轮比较结果，取出最小值后沿该叶子到根的路径更新，避免重复比较。','levels'),
+    A('smooth','平滑排序','Smoothsort',['O(n)','O(n log n)','O(n log n)','O(1)','不稳定'],
+      'Dijkstra 提出：按莱昂纳多数列把序列划成堆森林，输入接近有序时接近 O(n)。此处保留堆森林与原地特性，为便于观察固定一次堆边界。'),
+    A('cycle','圈排序','Cycle Sort',['O(n²)','O(n²)','O(n²)','O(1)','不稳定'],
+      '把置换分解成若干圈，每个元素一次写到最终位置，理论上写入次数最少。适合写操作代价极高的存储介质。')
+  ]},
+  { key:'insertion', name:'插入排序类', items:[
+    A('straightInsertion','直接插入排序','Straight Insertion',['O(n)','O(n²)','O(n²)','O(1)','稳定'],
+      '维护一个有序前缀，把当前元素一路向左比较并移动，直到落到正确位置。越接近有序越快。'),
+    A('binaryInsertion','折半插入排序','Binary Insertion',['O(n)','O(n²)','O(n²)','O(1)','稳定'],
+      '用二分查找确定插入位置，把比较次数从 O(n) 降到 O(log n)，但元素搬移次数不变。'),
+    A('shell','希尔排序','Shell Sort',['O(n log n)','O(n^1.3)','O(n²)','O(1)','不稳定'],
+      '按递减增量 gap 对间隔子序列做插入排序，让元素大步跳向最终位置，最后 gap=1 收尾。'),
+    A('library','图书馆排序','Library / Gapped Insertion',['O(n)','O(n log n)','O(n²)','O(n)','稳定'],
+      '像书架留空位一样在元素间预留空隙，插入时只搬动局部；空隙用尽则整体重新分散。画面为稀疏槽位表。','levels'),
+    A('gnome','Gnome Sort','侏儒排序',['O(n)','O(n²)','O(n²)','O(1)','稳定'],
+      '像花园侏儒整理花盆：顺序对就往前走，顺序错就交换并后退一步，代码只需一层循环。')
+  ]},
+  { key:'exchange', name:'交换排序类', items:[
+    A('bubble','冒泡排序','Bubble Sort',['O(n)','O(n²)','O(n²)','O(1)','稳定'],
+      '反复比较相邻元素，逆序则交换；每趟把最大值「冒」到末尾，无交换时可提前结束。'),
+    A('cocktail','鸡尾酒排序','Cocktail Shaker Sort',['O(n)','O(n²)','O(n²)','O(1)','稳定'],
+      '双向冒泡：一趟向右送最大值，下一趟向左送最小值，能更快把「小乌龟」移到前端。'),
+    A('quick','快速排序','Quick Sort',['O(n log n)','O(n log n)','O(n²)','O(log n)','不稳定'],
+      'Lomuto 划分：选末尾为基准，把小于基准的换到左侧，基准归位后递归两侧。青色为基准值。'),
+    A('quick3','三路快排','3-Way Quick Sort',['O(n log n)','O(n log n)','O(n²)','O(log n)','不稳定'],
+      '荷兰国旗划分成 < / = / > 三区，等于基准的整段一次归位，含大量重复元素时性能远优于普通快排。'),
+    A('dualPivot','双轴快排','Dual-Pivot Quick Sort',['O(n log n)','O(n log n)','O(n²)','O(log n)','不稳定'],
+      '同时取两个基准 p1 ≤ p2，一次划分成三段再递归。Java 7 起用于基本类型数组排序。'),
+    A('comb','梳排序','Comb Sort',['O(n log n)','O(n²/2^p)','O(n²)','O(1)','不稳定'],
+      '冒泡排序的改良：先用大间距比较消除远处的小元素，再按 1.3 收缩间距，最后 gap=1 收尾。'),
+    A('oddEven','奇偶排序','Odd-Even / Brick Sort',['O(n)','O(n²)','O(n²)','O(1)','稳定'],
+      '交替比较 (奇, 偶) 与 (偶, 奇) 下标对，同一阶段所有对互不相交，可完全并行，适合 GPU / 排序网络。')
+  ]},
+  { key:'merge', name:'归并排序类', items:[
+    A('merge2','二路归并','2-Way Merge Sort',['O(n log n)','O(n log n)','O(n log n)','O(n)','稳定'],
+      '递归对半拆分到单元素，再两两有序合并。每次比较两段段首取较小者写入结果。'),
+    A('multiway','多路归并','K-Way Merge',['O(n log k)','O(n log k)','O(n log k)','O(n)','稳定'],
+      '先把序列分成 k 条有序带，每轮扫描 k 个段首取最小值写入输出，用于大文件与数据库排序。','levels'),
+    A('topDown','自顶向下归并','Top-Down Merge',['O(n log n)','O(n log n)','O(n log n)','O(n)','稳定'],
+      '递归版归并：把当前段拆成两个子段（画面向前推进一层深度），子段归并完成后回到上一层。','levels'),
+    A('bottomUp','自底向上归并','Bottom-Up Merge',['O(n log n)','O(n log n)','O(n log n)','O(n)','稳定'],
+      '迭代版归并：段长从 1 开始每轮翻倍，直接两两归并，无需递归栈。'),
+    A('timsort','TimSort','Tim Peters Sort',['O(n)','O(n log n)','O(n log n)','O(n)','稳定'],
+      '识别自然有序段（降序段反转），短 run 用插入排序补齐到 minrun，再按栈策略合并。Python / Java 对象排序默认算法。'),
+    A('external','外部归并','External Merge Sort',['O(n log n)','O(n log n)','O(n log n)','O(1)','稳定'],
+      '数据大于内存时：分页载入内存排序写回磁盘，再从每页顺序读一个元素放入缓冲区，选最小写入输出带。画面分磁盘页 / 缓冲区 / 输出三层。','levels'),
+    A('parallel','并行归并','Parallel Merge',['O(log² n)','O(log² n)','O(log² n)','O(n)','稳定'],
+      '每轮把相邻段两两配对，所有段对同时归并（画面中所有段首一起高亮），轮数只有 log n。','levels'),
+    A('block','Block Sort','块排序 / 原地归并',['O(n log n)','O(n log n)','O(n²)','O(1)','稳定'],
+      '先按 √n 分块各自插入排序，再用「旋转」把两段原地合并，不借助大块辅助数组。WikiSort 的核心思路。')
+  ]},
+  { key:'distribution', name:'基数 / 分配排序类', items:[
+    A('lsd','LSD 基数排序','LSD Radix Sort',['O(d(n+r))','O(d(n+r))','O(d(n+r))','O(n+r)','稳定'],
+      '从最低位开始，按个位、十位…依次把元素分配进 0~9 号桶，再按桶序收集。全程不比较元素大小。','bucket'),
+    A('msd','MSD 基数排序','MSD Radix Sort',['O(d(n+r))','O(d(n+r))','O(d(n+r))','O(n+r)','稳定'],
+      '从最高位开始分配，对每个非空桶递归地按更低位再分，桶内只剩少量元素时收尾排序。','bucket'),
+    A('counting','计数排序','Counting Sort',['O(n+k)','O(n+k)','O(n+k)','O(k)','稳定'],
+      '统计每个值出现次数，求前缀和后直接算出每个元素的最终下标。要求值域 k 不大；画面把计数格按十进制区间合并展示。','bucket'),
+    A('bucket','桶排序','Bucket Sort',['O(n)','O(n+k)','O(n²)','O(n+k)','稳定'],
+      '把值域均分成若干桶，元素按映射函数入桶，桶内各自排序后按桶序串接。数据均匀时接近线性。','bucket'),
+    A('pigeonhole','鸽巢排序','Pigeonhole Sort',['O(n+k)','O(n+k)','O(n+k)','O(k)','稳定'],
+      '值域内每个可能取值各准备一个「鸽巢」，元素放入对应巢，再按巢号依次取出。值域接近 n 时非常高效。','bucket'),
+    A('flash','FlashSort','Flash Sort',['O(n)','O(n)','O(n²)','O(k)','不稳定'],
+      '按值域线性划分类，统计每类数量得到类段边界，用循环置换把元素一次搬到对应类段，最后类内插入排序收尾。','bucket')
+  ]}
+];
+const ALGOS = {};
+CATS.forEach(c => c.items.forEach(a => { ALGOS[a.id] = Object.assign({ cat: c.key, catName: c.name }, a); }));
+
+/* =====================================================================
+   场景
+   ===================================================================== */
+const canvas   = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;   // 设计室风格：色彩不做胶片压缩，保持纸色干净
+renderer.toneMappingExposure = 1.0;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xf2f1ed, 120, 360);
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 800);
+
+/* 明亮展厅环境贴图：天光 + 两侧柔光箱 + 地面暖反光 */
+function createEnvTexture(){
+  const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+  const g = c.getContext('2d');
+
+  const grd = g.createLinearGradient(0, 0, 0, 256);
+  grd.addColorStop(0.00, '#ffffff');
+  grd.addColorStop(0.34, '#fbfaf7');
+  grd.addColorStop(0.50, '#f1efe9');
+  grd.addColorStop(0.66, '#e4e0d6');
+  grd.addColorStop(1.00, '#cfc9bd');
+  g.fillStyle = grd; g.fillRect(0, 0, 512, 256);
+
+  // 上方两块大柔光（摄影棚顶灯）
+  const blobs = [
+    [128, 26, 150, 'rgba(255,255,255,0.95)'],
+    [384, 22, 130, 'rgba(255,255,255,0.85)'],
+    [256, 60, 200, 'rgba(255,253,248,0.55)'],
+    [ 40, 210, 120, 'rgba(206,190,168,0.45)'],
+    [470, 215, 110, 'rgba(198,182,160,0.40)']
+  ];
+  for (const [x, y, r, col] of blobs){
+    const rg = g.createRadialGradient(x, y, 0, x, y, r);
+    rg.addColorStop(0, col);
+    rg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = rg;
+    g.fillRect(0, 0, 512, 256);
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+scene.environment = createEnvTexture();
+
+/* 自然白光：一盏主光 + 一盏补光 + 一盏背光，去掉高饱和点光源 */
+scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d1c4, 0.95));
+const keyLight = new THREE.DirectionalLight(0xfffdf8, 1.55);
+keyLight.position.set(34, 62, 46); scene.add(keyLight);
+const fillLight = new THREE.DirectionalLight(0xffffff, 0.45);
+fillLight.position.set(-46, 34, -18); scene.add(fillLight);
+const rimLight = new THREE.DirectionalLight(0xffffff, 0.25);
+rimLight.position.set(-6, 26, -70); scene.add(rimLight);
+
+/* 地面：浅色展台 + 淡灰网格，去掉霓虹光晕板 */
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(600, 600),
+  new THREE.MeshStandardMaterial({ color: 0xf7f5f0, roughness: 1.0, metalness: 0.0 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -0.02;
+scene.add(floor);
+
+const gridHelper = new THREE.GridHelper(600, 200, 0xbfb9ad, 0xd8d3c9);
+gridHelper.material.transparent = true; gridHelper.material.opacity = 0.7; scene.add(gridHelper);
+
+/* =====================================================================
+   颜色
+   ===================================================================== */
+/* ---------- 纸盒色板 ----------
+   常态：牛皮纸色系，随高度由浅卡其 → 深棕
+   状态：比较=琥珀黄 / 移动=正红 / 基准=靛蓝 / 完成=草绿（都用高饱和"彩色纸"） */
+const C_CMP   = new THREE.Color('#f7c31c');
+const C_MOV   = new THREE.Color('#d94a3d');
+const C_DONE  = new THREE.Color('#3f9e5a');
+const C_PIVOT = new THREE.Color('#3a6fd8');
+const C_DARK  = new THREE.Color('#e9e6df');   // 失焦时向背景"褪色"而不是变黑
+
+const KRAFT_LIGHT = new THREE.Color('#ddc4a0');  // 浅卡其
+const KRAFT_MID   = new THREE.Color('#c0a074');  // 中棕
+const KRAFT_DARK  = new THREE.Color('#7d5f42');  // 深棕
+
+function baseColor(v, maxV){
+  const t = maxV > 0 ? clamp(v / maxV, 0, 1) : 0;
+  const c = new THREE.Color();
+  if (t < 0.55) c.copy(KRAFT_LIGHT).lerp(KRAFT_MID, t / 0.55);
+  else          c.copy(KRAFT_MID).lerp(KRAFT_DARK, (t - 0.55) / 0.45);
+  // 轻微色相抖动，避免整排"同色号"太工业
+  const j = ((v * 37) % 11) / 11 - 0.5;
+  c.offsetHSL(j * 0.012, j * 0.03, j * 0.018);
+  return c;
+}
+
+/* =====================================================================
+   网格单元
+   ===================================================================== */
+const COLS = 8;
+const CELL_W = 9.6, CELL_D = 5.8, COL_GAP = 3.4, ROW_GAP = 4.6;
+const COL_PITCH = CELL_W + COL_GAP;
+const ROW_PITCH = CELL_D + ROW_GAP;
+const CELL_SCALE = 0.34;
+const CELLS = [];
+
+const boxGeo = new THREE.BoxGeometry(1,1,1);
+
+/* ---------- 纸盒质感：一张共享的瓦楞纸纹理 + 一套共享描边 ---------- */
+function makeCardboardTexture(){
+  const S = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, S, S);
+
+  // 纤维噪点（幅度压小，避免远处变成电视雪花）
+  const img = g.getImageData(0, 0, S, S);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4){
+    const n = (Math.random() - 0.5) * 14;
+    d[i]     = clamp(d[i] + n, 0, 255);
+    d[i + 1] = clamp(d[i + 1] + n, 0, 255);
+    d[i + 2] = clamp(d[i + 2] + n, 0, 255);
+  }
+  g.putImageData(img, 0, 0);
+
+  // 极淡的瓦楞横纹
+  g.globalAlpha = 0.06;
+  g.strokeStyle = '#6b5540';
+  g.lineWidth = 1;
+  for (let y = 3; y < S; y += 7){
+    g.beginPath();
+    g.moveTo(0, y + 0.5);
+    g.lineTo(S, y + 0.5);
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+const CARDBOARD_TEX = makeCardboardTexture();
+const BOX_EDGES = new THREE.EdgesGeometry(boxGeo);          // 12 条棱，全场共用
+const OUTLINE_MAT = new THREE.LineBasicMaterial({
+  color: 0x1b1916, transparent: true, opacity: 0.88
+});
+
+/* 单元格底部的柔和接触阴影（亮展厅里用淡灰投影代替发光） */
+function softGlowTexture(){
+  const s = 256, c = document.createElement('canvas'); c.width = c.height = s;
+  const g = c.getContext('2d');
+  const rg = g.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+  rg.addColorStop(0, 'rgba(96,84,66,0.34)');
+  rg.addColorStop(0.5, 'rgba(96,84,66,0.13)');
+  rg.addColorStop(0.8, 'rgba(96,84,66,0.04)');
+  rg.addColorStop(1, 'rgba(96,84,66,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, s, s);
+  const t = new THREE.CanvasTexture(c); return t;
+}
+const cellGlowTex = softGlowTexture();
+const cellGlowGeo = new THREE.PlaneGeometry(CELL_W * 1.02, CELL_D * 0.92);
+const hitGeo = new THREE.PlaneGeometry(CELL_W, CELL_D);
+
+/* 铭牌 */
+function nameTexture(idx, name, en){
+  const w = 512, h = 110, c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, w, h);
+  g.textBaseline = 'middle';
+  g.font = '600 30px Inter, "PingFang SC", "Microsoft YaHei", sans-serif';
+  g.fillStyle = 'rgba(170,98,50,0.95)';
+  g.fillText(String(idx).padStart(2, '0'), 8, 52);
+  g.fillStyle = 'rgba(48,44,38,0.92)';
+  g.fillText(name, 58, 52);
+  g.font = '400 19px Inter, sans-serif';
+  g.fillStyle = 'rgba(130,120,104,0.85)';
+  g.fillText(en, 60, 88);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/* 焦点标记：四角括号，不画整圈边框 */
+function bracketTexture(){
+  const w = 256, h = 160, c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, w, h);
+  const m = 10, arm = 34, lw = 5;
+  g.strokeStyle = 'rgba(150,88,44,0.92)';
+  g.lineWidth = lw; g.lineCap = 'round';
+  const corner = (x, y, sx, sy) => {
+    g.beginPath();
+    g.moveTo(x + sx * arm, y);
+    g.lineTo(x, y);
+    g.lineTo(x, y + sy * arm);
+    g.stroke();
+  };
+  corner(m, m, 1, 1);
+  corner(w - m, m, -1, 1);
+  corner(w - m, h - m, -1, -1);
+  corner(m, h - m, 1, -1);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+const ringMesh = new THREE.Mesh(new THREE.PlaneGeometry(CELL_W + 0.5, CELL_D + 0.5),
+  new THREE.MeshBasicMaterial({ map:bracketTexture(), transparent:true, opacity:0.9,
+    depthWrite:false }));
+ringMesh.rotation.x = -Math.PI/2;
+ringMesh.position.y = 0.03;
+ringMesh.renderOrder = 2;
+scene.add(ringMesh);
+
+let seq = 0;
+CATS.forEach((cat, row) => {
+  cat.items.forEach((meta, col) => {
+    const cell = {
+      id: meta.id, meta, row, col, seq: ++seq,
+      x: (col - (COLS - 1) / 2) * COL_PITCH,
+      z: (row - 2) * ROW_PITCH,
+      n: 14, values: [], items: [], steps: [], cursor: 0, acc: 0,
+      playing: false, speed: 1, mix: 1, mixTarget: 1
+    };
+    const g = new THREE.Group();
+    g.position.set(cell.x, 0, cell.z);
+    g.scale.setScalar(CELL_SCALE);
+    scene.add(g);
+    cell.group = g;
+
+    const glow = new THREE.Mesh(cellGlowGeo, new THREE.MeshBasicMaterial({
+      map: cellGlowTex, transparent:true, opacity:0.16, depthWrite:false
+    }));
+    glow.rotation.x = -Math.PI/2;
+    glow.position.set(cell.x, 0.012, cell.z);
+    glow.renderOrder = -1;
+    scene.add(glow);
+    cell.glow = glow;
+
+    const hit = new THREE.Mesh(hitGeo, new THREE.MeshBasicMaterial({ visible:false }));
+    hit.rotation.x = -Math.PI/2;
+    hit.position.set(cell.x, 0.014, cell.z);
+    hit.userData.cell = cell;
+    scene.add(hit);
+    cell.plate = hit;
+
+    const nm = new THREE.Mesh(new THREE.PlaneGeometry(5.9, 1.28),
+      new THREE.MeshBasicMaterial({ map: nameTexture(seq, meta.name, meta.en), transparent:true, opacity:0.9, depthWrite:false }));
+    nm.rotation.x = -Math.PI/2;
+    nm.position.set(cell.x, 0.018, cell.z + 2.2);
+    scene.add(nm);
+    cell.nameplate = nm;
+
+    CELLS.push(cell);
+  });
+});
+
+/* ---------- 柱子 ---------- */
+const MAX_H_LOCAL = 8.0;
+function disposeCellBars(cell){
+  for (const it of cell.items){
+    cell.group.remove(it.mesh);
+    it.mat.dispose();
+  }
+  cell.items = [];
+}
+function buildCellBars(cell, values){
+  disposeCellBars(cell);
+  const n = values.length, maxV = Math.max(...values);
+  const spacing = ROW_W / n;
+  const bw = Math.min(1.55, spacing * 0.64);
+  const bd = Math.min(0.95, bw);
+  cell.items = values.map((v, i) => {
+    const h = 0.5 + (v / maxV) * MAX_H_LOCAL;
+    const col = baseColor(v, maxV);
+
+    /* 硬纸板：完全哑光、不发光，靠贴图给出纤维颗粒 */
+    const mat = new THREE.MeshStandardMaterial({
+      color: col.clone(),
+      map: CARDBOARD_TEX,
+      roughness: 0.94,
+      metalness: 0.0,
+      emissive: 0x000000,
+      emissiveIntensity: 0,
+      flatShading: true,
+      // 把实体面稍微推远，让描边稳稳压在上面，避免 Z-fighting
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1
+    });
+
+    const mesh = new THREE.Mesh(boxGeo, mat);
+    mesh.scale.set(bw, h, bd);
+    mesh.position.set(rowX(i, n), h / 2, 0);
+
+    /* 黑色折线描边：共享几何与材质，直接作为子节点跟随缩放 */
+    const edges = new THREE.LineSegments(BOX_EDGES, OUTLINE_MAT);
+    edges.scale.setScalar(1.002);
+    edges.renderOrder = 3;
+    mesh.add(edges);
+
+    cell.group.add(mesh);
+    return { id:i, value:v, mesh, mat, edges, base:col, targetColor:col.clone(),
+      tx: rowX(i, n), tz: 0, h, curH: h, state:'idle', dim:1, bw, bd };
+  });
+}
+
+const STEP_MS = 46;
+
+function applyStepToCell(cell, i){
+  const st = cell.steps[i]; if (!st) return;
+  const n = cell.items.length;
+
+  if (st.coords){
+    const idx = {}; st.order.forEach((id,k) => { idx[id] = k; });
+    for (const it of cell.items){
+      const c = st.coords[it.id];
+      if (c){ it.tx = c[0]; it.tz = c[1]; }
+      else { it.tx = rowX(idx[it.id] !== undefined ? idx[it.id] : it.id, n); it.tz = 0; }
+    }
+  } else {
+    st.order.forEach((id,k) => { cell.items[id].tx = rowX(k, n); cell.items[id].tz = 0; });
+  }
+
+  for (const it of cell.items){ it.state = 'idle'; it.dim = 1; }
+  if (st.focus){
+    const f = new Set(st.focus);
+    for (const it of cell.items) if (!f.has(it.id)) it.dim = 0.3;
+  }
+  st.done.forEach(id => { const it = cell.items[id]; if (it){ it.state = 'done'; it.dim = 1; } });
+  if (st.pivot)   for (const id of st.pivot)   if (cell.items[id]) cell.items[id].state = 'pivot';
+  if (st.compare) for (const id of st.compare) if (cell.items[id]) cell.items[id].state = 'cmp';
+  if (st.moved)   for (const id of st.moved)   if (cell.items[id]) cell.items[id].state = 'mov';
+
+  for (const it of cell.items){
+    let c;
+    if (it.state === 'cmp') c = C_CMP;
+    else if (it.state === 'mov') c = C_MOV;
+    else if (it.state === 'pivot') c = C_PIVOT;
+    else if (it.state === 'done') c = C_DONE;
+    else c = it.base;
+    it.targetColor.copy(c);
+    if (it.dim < 1) it.targetColor.lerp(C_DARK, 0.66);
+  }
+
+  if (cell === focused && st.note) setCaption(st.note);
+}
+
+function newValuesFor(n){
+  return Array.from({ length:n }, () => 6 + Math.floor(Math.random() * 93));
+}
+function rebuildCell(cell, opts = {}){
+  const n = opts.n || cell.n;
+  cell.n = n;
+  if (opts.values) cell.values = opts.values;
+  else if (!cell.values.length || opts.reshuffle) cell.values = newValuesFor(n);
+  if (cell.values.length !== n) cell.values = newValuesFor(n);
+  buildCellBars(cell, cell.values);
+  cell.steps = buildSteps(cell.meta.id, cell.values);
+  cell.cursor = 0; cell.acc = 0; cell.playing = false;
+  syncPanel(cell);
+}
+function playCell(cell){
+  if (!cell.steps.length) return;
+  if (cell.cursor >= cell.steps.length){ cell.cursor = 0; cell.acc = 0; }
+  cell.playing = true;
+  syncPanel(cell);
+}
+function pauseCell(cell){ cell.playing = false; syncPanel(cell); }
+function toggleCell(cell){ if (cell.playing) pauseCell(cell); else playCell(cell); }
+
+/* =====================================================================
+   相机
+   ===================================================================== */
+const FOCUS_R = 23;
+const FOCUS_PHI = 0.9;
+const cam = {
+  theta: 0, phi: 1.0, radius: 120,
+  tTheta: 0, tPhi: 1.0, tRadius: 120,
+  target: new THREE.Vector3(0, 0, 0),
+  goal: new THREE.Vector3(0, 0, 0),
+  mode: 'focus'
+};
+function overviewDistance(){
+  const aspect = window.innerWidth / window.innerHeight;
+  // 网格总宽 ≈104，但最前一排离相机更近、投影更宽，所以按"前排视距"反推距离
+  const need = 130;
+  const vis = 2 * Math.tan(THREE.MathUtils.degToRad(42 / 2)) * aspect;
+  return clamp(need / vis, 70, 260);
+}
+function updateCamera(dt){
+  const k = 1 - Math.exp(-dt * 6.5);
+  cam.radius += (cam.tRadius - cam.radius) * k;
+  cam.theta  += (cam.tTheta  - cam.theta ) * k;
+  cam.phi    += (cam.tPhi    - cam.phi   ) * k;
+  cam.target.lerp(cam.goal, k);
+
+  // 收敛到位后直接吸附，避免无限逼近产生的"永不停止的微小位移"
+  if (Math.abs(cam.tRadius - cam.radius) < 1e-3) cam.radius = cam.tRadius;
+  if (Math.abs(cam.tTheta  - cam.theta)  < 1e-5) cam.theta  = cam.tTheta;
+  if (Math.abs(cam.tPhi    - cam.phi)    < 1e-5) cam.phi    = cam.tPhi;
+  if (cam.target.distanceToSquared(cam.goal) < 1e-6) cam.target.copy(cam.goal);
+
+  const sp = Math.sin(cam.phi), cp = Math.cos(cam.phi);
+  camera.position.set(
+    cam.target.x + cam.radius * sp * Math.sin(cam.theta),
+    cam.target.y + cam.radius * cp,
+    cam.target.z + cam.radius * sp * Math.cos(cam.theta)
+  );
+  camera.lookAt(cam.target);
+}
+
+/* =====================================================================
+   焦点与导航
+   ===================================================================== */
+let focused = CELLS[0];
+let overviewMode = false;
+
+function setFocus(cell, opts = {}){
+  if (!cell) return;
+  hideTooltip();          // 相机要动了，先收起提示，避免气泡停在空中
+  focused = cell;
+  overviewMode = false;
+  cam.mode = 'focus';
+  cam.goal.set(cell.x, 1.1, cell.z);
+  cam.tRadius = FOCUS_R;
+  cam.tPhi = FOCUS_PHI;
+  updateHud();
+  syncPanels();
+  ringMesh.position.x = cell.x;
+  ringMesh.position.z = cell.z;
+  if (opts.play !== false && cell.cursor === 0 && !cell.playing) playCell(cell);
+  if (opts.caption !== false) setCaption(cell.meta.name + ' · ' + cell.meta.en);
+}
+function setOverview(){
+  hideTooltip();
+  overviewMode = true;
+  cam.mode = 'overview';
+  cam.goal.set(0, 0, 0);
+  cam.tRadius = overviewDistance();
+  cam.tPhi = 1.02;
+  document.getElementById('btnFocus').classList.remove('on');
+  document.getElementById('btnOverview').classList.add('on');
+  syncPanels();
+  setCaption('全景视图 · 32 个算法单元');
+}
+function moveFocus(dc, dr){
+  if (overviewMode){ overviewMode = false; document.getElementById('btnOverview').classList.remove('on'); }
+  let row = clamp(focused.row + dr, 0, CATS.length - 1);
+  const count = CATS[row].items.length;
+  let col = clamp(focused.col + dc, 0, count - 1);
+  const target = CELLS.find(c => c.row === row && c.col === col);
+  if (target) setFocus(target);
+}
+
+/* =====================================================================
+   地面控制条（HTML 浮层）
+   ===================================================================== */
+const panelsEl = document.getElementById('panels');
+const PANELS = new Map();
+function shortName(name){ return name.replace(/排序$/, '').replace(/\s*\/.*$/, ''); }
+
+CELLS.forEach(cell => {
+  const el = document.createElement('div');
+  el.className = 'cpanel';
+  el.dataset.id = cell.id;
+  el.innerHTML = `
+    <div class="cp-h">
+      <i class="cp-dot"></i><b>${shortName(cell.meta.name)}</b>
+      <button class="cp-b" data-a="play" title="开始/暂停">▶</button>
+      <button class="cp-b" data-a="replay" title="重播">↻</button>
+      <button class="cp-b" data-a="shuffle" title="打乱">⤨</button>
+    </div>
+    <div class="cp-r"><span>量</span><input type="range" min="8" max="30" step="1" data-a="size" value="${cell.n}"><b class="v-size">${cell.n}</b></div>
+    <div class="cp-r"><span>速</span><input type="range" min="0.4" max="4" step="0.1" data-a="speed" value="1"><b class="v-speed">1.0×</b></div>`;
+  panelsEl.appendChild(el);
+  PANELS.set(cell.id, el);
+
+  el.addEventListener('pointerdown', e => { if (cell !== focused) setFocus(cell, { play:false }); e.stopPropagation(); });
+  el.addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    e.stopPropagation();
+    const a = btn.dataset.a;
+    if (a === 'play') toggleCell(cell);
+    else if (a === 'replay'){ cell.cursor = 0; cell.acc = 0; playCell(cell); }
+    else if (a === 'shuffle'){ rebuildCell(cell, { reshuffle:true, n:cell.n }); playCell(cell); }
+  });
+  el.addEventListener('input', e => {
+    const a = e.target.dataset.a;
+    if (a === 'size'){
+      const n = parseInt(e.target.value, 10);
+      el.querySelector('.v-size').textContent = n;
+      rebuildCell(cell, { reshuffle:true, n });
+      playCell(cell);
+    } else if (a === 'speed'){
+      const sp = parseFloat(e.target.value);
+      cell.speed = sp;
+      el.querySelector('.v-speed').textContent = sp.toFixed(1) + '×';
+    }
+  });
+});
+
+function syncPanel(cell){
+  const el = PANELS.get(cell.id); if (!el) return;
+  const btn = el.querySelector('[data-a="play"]');
+  btn.textContent = cell.playing ? '❙❙' : '▶';
+  btn.style.color = cell.playing ? '#b9703f' : '';
+  btn.style.borderColor = cell.playing ? 'rgba(185,112,63,.55)' : '';
+  el.querySelector('[data-a="size"]').value = String(cell.n);
+  el.querySelector('.v-size').textContent = String(cell.n);
+  el.querySelector('[data-a="speed"]').value = String(cell.speed);
+  el.querySelector('.v-speed').textContent = cell.speed.toFixed(1) + '×';
+}
+function syncPanels(){
+  for (const cell of CELLS){
+    const el = PANELS.get(cell.id);
+    el.classList.toggle('focus', cell === focused);
+    el.classList.toggle('dim', cell !== focused);
+  }
+  markPanelsDirty();
+}
+
+/* 把 HTML 控件按地面透视贴到 3D 平面：由四个投影点求单应矩阵 */
+const _pv = new THREE.Vector3();
+const _c0 = [0,0], _c1 = [0,0], _c2 = [0,0], _c3 = [0,0];
+function projectPt(x, y, z, out){
+  _pv.set(x, y, z).project(camera);
+  out[0] = (_pv.x * 0.5 + 0.5) * window.innerWidth;
+  out[1] = (-_pv.y * 0.5 + 0.5) * window.innerHeight;
+  return _pv.z <= 1;
+}
+function groundTransform(el, cx, cz, hw, hh, w, h){
+  const y = 0.05;
+  let ok = projectPt(cx - hw, y, cz - hh, _c0);
+  ok = projectPt(cx + hw, y, cz - hh, _c1) && ok;
+  ok = projectPt(cx + hw, y, cz + hh, _c2) && ok;
+  ok = projectPt(cx - hw, y, cz + hh, _c3) && ok;
+  if (!ok) return false;
+
+  const x0 = _c0[0], y0 = _c0[1];
+  const x1 = _c1[0], y1 = _c1[1];
+  const x2 = _c2[0], y2 = _c2[1];
+  const x3 = _c3[0], y3 = _c3[1];
+
+  const dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3;
+  const dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3;
+
+  let a11, a21, a31, a12, a22, a32, a13 = 0, a23 = 0;
+  if (Math.abs(dx3) < 1e-6 && Math.abs(dy3) < 1e-6){
+    a11 = x1 - x0; a21 = x2 - x1; a31 = x0;
+    a12 = y1 - y0; a22 = y2 - y1; a32 = y0;
+  } else {
+    const den = dx1 * dy2 - dx2 * dy1;
+    if (Math.abs(den) < 1e-6) return false;
+    a13 = (dx3 * dy2 - dx2 * dy3) / den;
+    a23 = (dx1 * dy3 - dx3 * dy1) / den;
+    a11 = x1 - x0 + a13 * x1;
+    a21 = x3 - x0 + a23 * x3;
+    a31 = x0;
+    a12 = y1 - y0 + a13 * y1;
+    a22 = y3 - y0 + a23 * y3;
+    a32 = y0;
+  }
+
+  el.style.transform =
+    `matrix3d(${a11 / w},${a12 / w},0,${a13 / w},` +
+    `${a21 / h},${a22 / h},0,${a23 / h},` +
+    `0,0,1,0,` +
+    `${a31},${a32},0,1)`;
+  return true;
+}
+
+const PANEL_W = 352, PANEL_H = 132;
+
+/* 贴地控件的尺寸与偏移统统先定义在「单元局部坐标系」（和柱子同一套坐标），
+   再乘 CELL_SCALE 换算到世界坐标 —— 这样 CELL_SCALE 一变，控件会和模型一起缩放，
+   不会出现框比模型大、拉远后飞出去的情况。 */
+const PANEL_LOCAL_HW = 11.47;   // 局部半宽
+const PANEL_LOCAL_HD = 4.32;    // 局部半深
+const PANEL_LOCAL_Z  = 12.80;   // 相对单元中心的前移量（局部）
+const PANEL_HW   = PANEL_LOCAL_HW * CELL_SCALE;    // ≈ 3.90 世界单位
+const PANEL_HD   = PANEL_LOCAL_HD * CELL_SCALE;    // ≈ 1.47 世界单位
+const PANEL_ZOFF = PANEL_LOCAL_Z  * CELL_SCALE;    // ≈ 4.35 世界单位
+
+/* 相机拉远 / 全景时不再渲染 HTML 控件：既避免满屏散落，也省掉几十次 matrix3d 计算 */
+const PANEL_MAX_RADIUS = 35;
+
+/* 相机静止时不再重算 matrix3d：阻尼插值的极微小残差会让贴地浮层像素级抖动 */
+const _lastCamPos  = new THREE.Vector3(1e9, 1e9, 1e9);
+const _lastCamQuat = new THREE.Quaternion(0, 0, 0, 1e9);
+let panelDirty = true;
+let panelsHidden = false;
+function markPanelsDirty(){ panelDirty = true; }
+
+/* 保证投影用的是"这一帧"的相机矩阵（否则会晚一帧，移动时浮层会拖着走） */
+function syncCameraMatrices(){
+  camera.updateMatrixWorld();
+  camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+}
+
+function updatePanels(){
+  /* 全景或拉远到阈值以外：直接全部隐藏，不做任何投影/矩阵运算 */
+  if (overviewMode || cam.radius > PANEL_MAX_RADIUS){
+    if (!panelsHidden){
+      for (const cell of CELLS){
+        const el = PANELS.get(cell.id);
+        if (el.style.display !== 'none') el.style.display = 'none';
+      }
+      panelsHidden = true;
+      panelDirty = true;                 // 再次出现时必须强制重算一次
+      _lastCamPos.set(1e9, 1e9, 1e9);
+    }
+    return;
+  }
+  panelsHidden = false;
+
+  if (!panelDirty){
+    const moved  = _lastCamPos.distanceToSquared(camera.position) > 1e-6;      // ~1mm
+    const turned = 1 - Math.abs(_lastCamQuat.dot(camera.quaternion)) > 5e-7;   // ~0.05°
+    if (!moved && !turned) return;      // 肉眼不可见 → 跳过全部 DOM 写入
+  }
+
+  syncCameraMatrices();
+
+  for (const cell of CELLS){
+    const el = PANELS.get(cell.id);
+    const ok = groundTransform(el, cell.x, cell.z + PANEL_ZOFF, PANEL_HW, PANEL_HD, PANEL_W, PANEL_H);
+    el.style.display = ok ? 'block' : 'none';
+    if (ok) el.classList.add('on');
+  }
+
+  _lastCamPos.copy(camera.position);
+  _lastCamQuat.copy(camera.quaternion);
+  panelDirty = false;
+}
+
+/* =====================================================================
+   浮窗 / 迷你地图
+   ===================================================================== */
+const fpCat = document.getElementById('fpCat');
+const fpName = document.getElementById('fpName');
+const fpEn = document.getElementById('fpEn');
+const fpBest = document.getElementById('fpBest');
+const fpWorst = document.getElementById('fpWorst');
+const fpSpace = document.getElementById('fpSpace');
+const miniEl = document.getElementById('mini');
+const captionEl = document.getElementById('caption');
+const tipEl = document.getElementById('showcaseTip');
+
+function setCaption(t){ if (captionEl.textContent !== t) captionEl.textContent = t; }
+function updateHud(){
+  const m = focused.meta;
+  fpCat.textContent = `${CATS[focused.row].name} · 行 ${focused.row + 1} / ${CATS.length} · 第 ${focused.col + 1} 个`;
+  fpName.textContent = m.name;
+  fpEn.textContent = m.en;
+  fpBest.textContent = m.best;
+  fpWorst.textContent = m.worst;
+  fpSpace.textContent = m.space;
+  document.querySelectorAll('.mini i').forEach(d => {
+    d.classList.toggle('on', d.dataset.id === focused.id);
+  });
+}
+
+/* 迷你地图 */
+CATS.forEach((cat, row) => {
+  for (let col = 0; col < COLS; col++){
+    const i = document.createElement('i');
+    const cell = CELLS.find(c => c.row === row && c.col === col);
+    if (cell){
+      i.dataset.id = cell.id;
+      i.title = cell.meta.name;
+      i.addEventListener('click', () => setFocus(cell));
+    } else i.className = 'empty';
+    miniEl.appendChild(i);
+  }
+});
+
+/* 全局控件 */
+const gSize = document.getElementById('gSize');
+const gSizeV = document.getElementById('gSizeV');
+const gSpeed = document.getElementById('gSpeed');
+const gSpeedV = document.getElementById('gSpeedV');
+let globalN = 14, globalSpeed = 1;
+
+gSize.addEventListener('input', e => {
+  globalN = parseInt(e.target.value, 10);
+  gSizeV.textContent = globalN;
+  CELLS.forEach(c => { rebuildCell(c, { n: globalN }); });
+});
+gSpeed.addEventListener('input', e => {
+  globalSpeed = parseFloat(e.target.value);
+  gSpeedV.textContent = globalSpeed.toFixed(1) + '×';
+  CELLS.forEach(c => { c.speed = globalSpeed; syncPanel(c); });
+});
+
+document.getElementById('btnAllPlay').addEventListener('click', () => {
+  CELLS.forEach(c => playCell(c));
+  setCaption('全部播放 · 32 个单元同时运行');
+});
+document.getElementById('btnAllReplay').addEventListener('click', () => {
+  CELLS.forEach(c => { c.cursor = 0; c.acc = 0; playCell(c); });
+  setCaption('全部重播');
+});
+document.getElementById('btnAllShuffle').addEventListener('click', () => {
+  CELLS.forEach(c => { rebuildCell(c, { reshuffle:true, n:c.n }); });
+  setCaption('全部打乱 · 各单元重新生成数据');
+});
+document.getElementById('btnShowcase').addEventListener('click', () => {
+  CELLS.forEach(c => {
+    const vals = newValuesFor(globalN);
+    rebuildCell(c, { n: globalN, values: vals });
+    c.speed = globalSpeed;
+    playCell(c);
+  });
+  setOverview();
+  tipEl.classList.add('on');
+  setCaption('全局展示 · 32 种算法同时运行，可拖拽旋转观察');
+  setTimeout(() => tipEl.classList.remove('on'), 4200);
+});
+document.getElementById('btnFocus').addEventListener('click', () => {
+  document.getElementById('btnFocus').classList.add('on');
+  document.getElementById('btnOverview').classList.remove('on');
+  setFocus(focused, { play:false });
+});
+document.getElementById('btnOverview').addEventListener('click', () => {
+  document.getElementById('btnFocus').classList.remove('on');
+  document.getElementById('btnOverview').classList.add('on');
+  setOverview();
+});
+let autoRotate = false;
+document.getElementById('btnRotate').addEventListener('click', e => {
+  autoRotate = !autoRotate;
+  e.currentTarget.classList.toggle('on', autoRotate);
+});
+
+/* =====================================================================
+   交互：拖拽 / 缩放 / 点击单元
+   ===================================================================== */
+let dragging = false;          // 左键：旋转
+let panning  = false;          // 右键：平移漫游
+let lastX = 0, lastY = 0, downX = 0, downY = 0;
+
+const _panRight = new THREE.Vector3();
+const _panUp    = new THREE.Vector3();
+
+canvas.addEventListener('contextmenu', e => e.preventDefault());   // 屏蔽右键菜单
+
+canvas.addEventListener('pointerdown', e => {
+  if (e.button === 2){
+    panning = true;
+  } else {
+    dragging = true;
+  }
+  lastX = e.clientX; lastY = e.clientY;
+  downX = e.clientX; downY = e.clientY;
+  canvas.setPointerCapture(e.pointerId);
+  hideTooltip();
+});
+
+canvas.addEventListener('pointermove', e => {
+  /* ---- 右键平移：屏幕位移 → 相机的 right / up 方向 ---- */
+  if (panning){
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+
+    // 屏幕 1px 在该视距下对应的世界长度
+    const wpp = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * cam.radius / window.innerHeight;
+    _panRight.setFromMatrixColumn(camera.matrixWorld, 0);   // 相机右方向
+    _panUp.setFromMatrixColumn(camera.matrixWorld, 1);      // 相机上方向
+
+    cam.goal.addScaledVector(_panRight, -dx * wpp);
+    cam.goal.addScaledVector(_panUp,    dy * wpp);
+    cam.goal.x = clamp(cam.goal.x, -140, 140);
+    cam.goal.y = clamp(cam.goal.y,  0, 14);
+    cam.goal.z = clamp(cam.goal.z, -120, 120);
+    cam.target.copy(cam.goal);           // 立即跟手，不再走阻尼
+    markPanelsDirty();
+    return;
+  }
+
+  /* ---- 左键旋转 ---- */
+  if (dragging){
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    cam.tTheta -= dx * 0.006;
+    cam.tPhi = clamp(cam.tPhi - dy * 0.005, 0.2, 1.46);
+    cam.theta = cam.tTheta;
+    cam.phi = cam.tPhi;
+    return;
+  }
+
+  /* ---- 悬停检测 ---- */
+  hoverTest(e);
+});
+
+canvas.addEventListener('pointerup', e => {
+  const wasDragging = dragging, wasPanning = panning;
+  dragging = false; panning = false;
+  try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+  if (wasDragging && !wasPanning && e.button === 0 &&
+      Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY) < 6){
+    pickCell(e);
+  }
+});
+canvas.addEventListener('pointercancel', () => { dragging = false; panning = false; hideTooltip(); });
+canvas.addEventListener('pointerleave', () => hideTooltip());
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  cam.tRadius = clamp(cam.tRadius * Math.exp(e.deltaY * 0.0012), 10, 280);
+  hideTooltip();          // 缩放后锚点会失效，直接收起
+}, { passive:false });
+
+/* =====================================================================
+   悬停提示 + 点击拾取
+   ===================================================================== */
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const PLATE_HITS = CELLS.map(c => c.plate);   // 复用数组，避免每次 map 出新对象
+
+const tooltipEl = document.getElementById('tooltip');
+let hoverStamp = 0;
+let tooltipCell = null;                        // 当前锚定的单元
+const _tipAnchor = new THREE.Vector3();
+
+/* 把单元正上方的一点投影到屏幕：气泡"钉"在模型头顶，不再跟着鼠标跑 */
+function placeTooltip(cell){
+  // 3.05 ≈ 最高柱子（2.89 世界单位）再高一点点，气泡就贴着模型头顶
+  _tipAnchor.set(cell.x, 3.05, cell.z).project(camera);
+  const sx = (_tipAnchor.x * 0.5 + 0.5) * window.innerWidth;
+  const sy = (-_tipAnchor.y * 0.5 + 0.5) * window.innerHeight;
+
+  const w = tooltipEl._tw, h = tooltipEl._th;
+  let x = sx - w / 2;
+  let y = sy - h - 10;
+  x = Math.max(10, Math.min(x, window.innerWidth  - w - 10));   // 贴边时收回屏内
+  y = Math.max(10, Math.min(y, window.innerHeight - h - 10));
+  tooltipEl.style.left = x + 'px';
+  tooltipEl.style.top  = y + 'px';
+}
+
+function showTooltip(cell){
+  const m = cell.meta;
+  tooltipEl.innerHTML =
+    `<b>${m.name}<em>${m.en}</em></b>` +
+    `<div class="cx">最好 ${m.best} · 平均 ${m.avg} · 最坏 ${m.worst} · 空间 ${m.space} · ${m.stable}</div>` +
+    `<p>${m.desc}</p>`;
+
+  tooltipEl._tw = tooltipEl.offsetWidth;    // 只在换模型时量一次，避免每次 hover 触发 layout
+  tooltipEl._th = tooltipEl.offsetHeight;
+  placeTooltip(cell);
+  tooltipEl.classList.add('on');
+  tooltipCell = cell;
+}
+
+function hideTooltip(){
+  if (!tooltipCell) return;
+  tooltipCell = null;
+  tooltipEl.classList.remove('on');
+}
+
+function hoverTest(e){
+  const now = performance.now();
+  if (now - hoverStamp < 55) return;    // 节流，避免每个像素都做射线检测
+  hoverStamp = now;
+
+  ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObjects(PLATE_HITS, false)[0];
+  const cell = hit && hit.object.userData.cell;
+
+  if (!cell){ hideTooltip(); return; }
+  if (cell === tooltipCell) return;     // 仍在同一个模型上 → 完全不碰 DOM
+  showTooltip(cell);
+}
+
+function pickCell(e){
+  ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObjects(PLATE_HITS, false);
+  if (hits.length){
+    const cell = hits[0].object.userData.cell;
+    if (cell) setFocus(cell, { play:false });
+  }
+}
+
+/* 键盘 */
+window.addEventListener('keydown', e => {
+  if (e.code === 'ArrowLeft'){ e.preventDefault(); moveFocus(-1, 0); }
+  else if (e.code === 'ArrowRight'){ e.preventDefault(); moveFocus(1, 0); }
+  else if (e.code === 'ArrowUp'){ e.preventDefault(); moveFocus(0, -1); }
+  else if (e.code === 'ArrowDown'){ e.preventDefault(); moveFocus(0, 1); }
+  else if (e.code === 'Space'){ e.preventDefault(); toggleCell(focused); }
+  else if (e.key === 'r' || e.key === 'R'){ rebuildCell(focused, { reshuffle:true, n:focused.n }); playCell(focused); }
+  else if (e.key === 'o' || e.key === 'O'){ setOverview(); }
+  else if (e.key === 'f' || e.key === 'F'){ setFocus(focused, { play:false }); }
+});
+
+/* =====================================================================
+   主循环
+   ===================================================================== */
+function resize(){
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  if (overviewMode) cam.tRadius = overviewDistance();
+  markPanelsDirty();          // 视口变了，贴地浮层必须重算一次
+}
+window.addEventListener('resize', resize);
+
+let lastT = performance.now();
+const _tmpC = new THREE.Color();
+
+function tick(now){
+  requestAnimationFrame(tick);
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+
+  if (autoRotate) cam.theta += dt * 0.08;
+
+  /* 播放推进 */
+  for (const cell of CELLS){
+    if (!cell.playing) continue;
+    cell.acc += dt * 1000 * cell.speed;
+    let guard = 0;
+    while (cell.acc >= STEP_MS && cell.cursor < cell.steps.length && guard++ < 40){
+      cell.acc -= STEP_MS;
+      applyStepToCell(cell, cell.cursor);
+      cell.cursor++;
+    }
+    if (cell.cursor >= cell.steps.length){
+      cell.playing = false;
+      if (cell === focused) setCaption(`${cell.meta.name} 完成 · ${cell.steps.length} 步`);
+      syncPanel(cell);
+    }
+  }
+
+  /* 行聚焦明暗 */
+  for (const cell of CELLS){
+    cell.mixTarget = overviewMode ? 1 : (cell.row === focused.row ? 1 : 0.34);
+    cell.mix += (cell.mixTarget - cell.mix) * (1 - Math.exp(-dt * 6));
+  }
+
+  /* 柱子插值 */
+  const posK = 1 - Math.exp(-dt * 14);
+  const colK = 1 - Math.exp(-dt * 11);
+  for (const cell of CELLS){
+    const mix = cell.mix;
+    for (const it of cell.items){
+      it.curH += (it.h - it.curH) * posK;
+      const m = it.mesh;
+      m.position.x += (it.tx - m.position.x) * posK;
+      m.position.z += (it.tz - m.position.z) * posK;
+      m.position.y = it.curH / 2;
+      m.scale.y = it.curH;
+
+      // 亮背景里"失焦"是向纸色褪去，而不是整体压黑；纸盒本身不发光，
+      // 状态完全由 color 表达（黄=比较 / 红=移动 / 蓝=基准 / 绿=完成）
+      _tmpC.copy(it.targetColor).lerp(C_DARK, 1 - mix);
+      m.material.color.lerp(_tmpC, colK);
+      m.material.emissiveIntensity = 0;
+    }
+    cell.glow.material.opacity = 0.10 + 0.12 * mix;
+    cell.nameplate.material.opacity = 0.40 + 0.52 * mix;
+  }
+
+  updateCamera(dt);
+  updatePanels();
+
+  /* 焦点框呼吸 */
+  const ringScale = 1 + Math.sin(now * 0.0025) * 0.006;
+  ringMesh.scale.set(ringScale, ringScale, 1);
+  ringMesh.material.opacity = 0.55 + 0.3 * Math.sin(now * 0.0025);
+
+  renderer.render(scene, camera);
+}
+
+/* =====================================================================
+   启动
+   ===================================================================== */
+resize();
+const params = new URLSearchParams(location.search);
+const pN = parseInt(params.get('n'), 10);
+if (pN >= 8 && pN <= 30){ globalN = pN; gSize.value = String(pN); gSizeV.textContent = pN; }
+
+CELLS.forEach(cell => rebuildCell(cell, { n: globalN }));
+CELLS.forEach(cell => syncPanel(cell));
+
+const pAlgo = params.get('algo');
+const startCell = (pAlgo && CELLS.find(c => c.id === pAlgo)) || CELLS[0];
+setFocus(startCell, { play: params.get('play') === '0' ? false : true });
+if (params.get('overview') === '1') setOverview();
+
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
