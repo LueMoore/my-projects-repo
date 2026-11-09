@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATX 主机 · 交互式拆解模拟器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:#E6E4DD;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  color:#22201D;-webkit-font-smoothing:antialiased}
+#stage{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;
+  background:#F3F1EB;overflow:hidden}
+#gl{position:absolute;left:0;top:0;width:1120px;height:900px;display:block;cursor:grab}
+#gl.drag{cursor:grabbing}
+
+#title{position:absolute;left:44px;top:38px;width:250px;pointer-events:none}
+#title h1{font-size:22px;font-weight:500;letter-spacing:.01em}
+#title p{font-size:13px;color:#6E6A62;margin-top:7px;line-height:1.55}
+#bigt{margin-top:16px;font-size:62px;font-weight:500;line-height:1;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;
+  font-family:ui-monospace,SFMono-Regular,"SF Mono",Consolas,"Liberation Mono",monospace}
+#bigt span{font-size:22px;color:#8A857B;margin-left:4px}
+#phase{font-size:13px;color:#6E6A62;margin-top:8px;height:18px}
+#phase b{color:#D9542B;font-weight:500}
+
+#views{position:absolute;left:398px;top:24px;display:flex;gap:6px}
+#views button{height:32px;padding:0 13px;border:1px solid #D8D4C9;background:#FBFAF6;border-radius:7px;
+  font-size:12.5px;color:#3A3733;cursor:pointer;font-family:inherit;transition:.14s;white-space:nowrap;
+  box-shadow:0 1px 0 rgba(0,0,0,.04)}
+#views button:hover{background:#fff;border-color:#B9B4A7}
+#views button:active{transform:translateY(1px);box-shadow:inset 0 1px 2px rgba(0,0,0,.14)}
+#views button.on{background:#22201D;color:#F3F1EB;border-color:#22201D}
+#views .sep{width:1px;background:#DED9CC;margin:2px 3px}
+
+#rail{position:absolute;left:1120px;top:0;width:480px;height:900px;
+  border-left:1px solid #DED9CC;background:#F7F5EF;padding:34px 30px 24px}
+#rail h2{font-size:11.5px;letter-spacing:.09em;color:#8A857B;font-weight:500;margin-bottom:10px}
+.rows{display:flex;flex-direction:column;gap:0}
+.row{display:flex;justify-content:space-between;align-items:baseline;
+  padding:7.5px 0;border-bottom:1px solid #E7E2D6;font-size:12.5px}
+.row span:first-child{color:#5E5A52}
+.row b{font-weight:500;font-variant-numeric:tabular-nums;font-size:12.5px;
+  font-family:ui-monospace,SFMono-Regular,"SF Mono",Consolas,monospace}
+.row b.good{color:#2F7D5C}
+.row b.warn{color:#C2551F}
+
+#checks{margin-top:16px}
+.chk{font-size:11px;line-height:1.62;color:#4E4A44;padding:5px 0;border-bottom:1px dotted #E2DDD0;
+  font-variant-numeric:tabular-nums;
+  font-family:ui-monospace,SFMono-Regular,"SF Mono",Consolas,monospace}
+.chk em{font-style:normal;color:#2F7D5C;font-weight:500}
+.chk u{text-decoration:none;color:#C2551F;font-weight:500}
+.chk s{text-decoration:none;color:#8A857B}
+.chk .as{color:#C2551F;font-weight:500;margin-right:3px}
+
+#dock{position:absolute;left:36px;top:748px;width:1050px;
+  background:rgba(251,250,246,.92);border:1px solid #DED9CC;border-radius:12px;
+  padding:11px 12px;backdrop-filter:blur(6px)}
+#dock .grp{display:flex;flex-wrap:wrap;gap:6px}
+#dock .grp + .grp{margin-top:6px}
+.pbtn{height:31px;padding:0 10px;border:1px solid #DED9CC;background:#FFFEFB;border-radius:6px;
+  font-size:11.5px;color:#4A4640;cursor:pointer;font-family:inherit;white-space:nowrap;
+  transition:.13s;display:flex;align-items:center;gap:6px;
+  box-shadow:0 1px 0 rgba(0,0,0,.035)}
+.pbtn:hover{border-color:#B9B4A7;background:#fff}
+.pbtn:active{transform:translateY(1px);box-shadow:inset 0 1px 2px rgba(0,0,0,.13)}
+.pbtn .dot{width:6px;height:6px;border-radius:50%;background:#D8D4C9;flex:none;transition:.2s}
+.pbtn.done .dot{background:#2F7D5C}
+.pbtn.on{border-color:#D9542B;background:#FDEFE9;color:#B2431F}
+.pbtn.on .dot{background:#D9542B}
+.pbtn.hot{border-color:#D9542B;background:#FFF6F1}
+
+#slider{position:absolute;left:44px;top:288px;width:330px}
+#slider input{width:100%;-webkit-appearance:none;height:3px;border-radius:2px;
+  background:#D8D4C9;outline:none;cursor:pointer}
+#slider input::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+  background:#22201D;border:2.5px solid #F3F1EB;box-shadow:0 0 0 1px #22201D;cursor:grab}
+#slider .lab{display:flex;justify-content:space-between;font-size:10.5px;color:#9A948A;margin-top:7px}
+
+.callout{position:absolute;left:0;top:0;pointer-events:none;opacity:0;transition:opacity .22s;
+  font-size:12.5px;color:#2E2B27;white-space:nowrap;z-index:6}
+.callout.on{opacity:1}
+.callout .lb{background:rgba(251,250,246,.95);border:1px solid #DED9CC;border-radius:5px;
+  padding:4px 8px;display:inline-block;font-variant-numeric:tabular-nums;
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);position:absolute;left:0;top:0}
+.callout .lb i{font-style:normal;color:#8A857B;margin-left:7px}
+.callout .ld{position:absolute;background:#A8A294;height:1px;transform-origin:0 0;left:0;top:0}
+.callout .dot{position:absolute;width:5px;height:5px;border-radius:50%;background:#D9542B;
+  left:0;top:0;transform:translate(-50%,-50%)}
+
+#cursor{position:absolute;left:0;top:0;width:22px;height:26px;pointer-events:none;opacity:0;
+  transition:transform .62s cubic-bezier(.16,1,.3,1),opacity .3s;z-index:9}
+#cursor.on{opacity:1}
+#cursor svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.28))}
+#ripple{position:absolute;width:34px;height:34px;border-radius:50%;border:2px solid #D9542B;
+  pointer-events:none;opacity:0;transform:translate(-50%,-50%) scale(.3);z-index:8}
+#ripple.go{animation:rip .5s ease-out}
+@keyframes rip{0%{opacity:.9;transform:translate(-50%,-50%) scale(.3)}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.7)}}
+
+#hint{position:absolute;left:44px;top:706px;font-size:11.5px;color:#9A948A;letter-spacing:.01em}
+#hint kbd{font-family:inherit;border:1px solid #D8D4C9;border-radius:3px;padding:1px 5px;
+  font-size:10.5px;background:#FBFAF6}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl"></canvas>
+
+  <div id="title">
+    <h1>ATX 主机 · 拆解模拟器</h1>
+    <p>一个输入 <code>t</code> 驱动全部几何、面板与标注<br>拖拽旋转 · 滚轮缩放 · ←→ 拆解 · 空格巡演</p>
+    <div id="bigt">0<span>%</span></div>
+    <div id="phase">已拆 <b>0</b> / 15 个零件</div>
+  </div>
+
+  <div id="slider">
+    <input id="ts" type="range" min="0" max="1000" value="0" step="1">
+    <div class="lab"><span>装配完成</span><span>完全拆解</span></div>
+  </div>
+
+  <div id="views">
+    <button data-v="hero" class="on">整体视角</button>
+    <button data-v="front">正前</button>
+    <button data-v="side">正侧</button>
+    <button data-v="top">俯视</button>
+    <button data-v="inside">机箱内部</button>
+    <div class="sep"></div>
+    <button id="bCut">剖切 · 关</button>
+    <button id="bTour">巡演 · 开</button>
+  </div>
+
+  <div id="dock">
+    <div class="grp" id="grpA"></div>
+    <div class="grp" id="grpB"></div>
+  </div>
+
+  <aside id="rail">
+    <h2>实时读数 · 全部由 model(t) 派生</h2>
+    <div class="rows" id="readout"></div>
+    <h2 style="margin-top:20px">手工核对 · 数字可验算</h2>
+    <div id="checks"></div>
+  </aside>
+
+  <div id="cursor"><svg width="22" height="26" viewBox="0 0 22 26">
+    <path d="M2 1L2 21L7.2 16.2L10.6 23.6L13.6 22.2L10.2 15L17 14.6Z"
+      fill="#22201D" stroke="#F3F1EB" stroke-width="1.4" stroke-linejoin="round"/>
+  </svg></div>
+  <div id="ripple"></div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   ATX 主机拆解模拟器
+   单一输入 t ∈ [0,1] → 所有姿态 / 面板 / 标注 / 相机
+   ============================================================ */
+
+const $ = s => document.querySelector(s);
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+const smooth = v => v * v * (3 - 2 * v);
+const phase = (t, a, b) => clamp01((t - a) / (b - a));
+
+/* ---------------- 真实尺寸（mm） ---------------- */
+const MM = {
+  boardH: 305, boardW: 244, pcb: 1.6,
+  standoff: 6.5, trayT: 1.2,
+  psuW: 150, psuH: 86, psuD: 140,
+  fan: 120, fanT: 25,
+  hddL: 146.99, hddW: 101.6, hddH: 26.1,
+  ssdL: 100, ssdW: 69.85, ssdT: 7,
+  m2L: 80, m2W: 22, m2T: 1.5,
+  dimmL: 133.35, dimmH: 31.25, dimmT: 8,
+  caseW: 210, caseH: 450, caseD: 470,
+  inW: 200, inH: 440, inD: 430,
+  coolerH: 158, gpuL: 300, gpuH: 120, gpuT: 50
+};
+
+/* 派生坐标：主板托盘面 → 铜柱 → PCB → 元件面 */
+const TRAY_X = -97;
+const TRAY_FACE = TRAY_X + MM.trayT / 2;            // -96.4
+const PCB_BACK = TRAY_FACE + MM.standoff;            // -89.9
+const PCB_FRONT = PCB_BACK + MM.pcb;                 // -88.3  元件面
+const PCB_C = PCB_BACK + MM.pcb / 2;                 // -89.1
+
+const IN_X = MM.inW / 2, IN_Y = MM.inH / 2, IN_Z = MM.inD / 2;   // 100 / 220 / 215
+
+/* ---------------- 矩阵 ---------------- */
+function mat4(){ return new Float32Array(16); }
+function ident(o){ o.fill(0); o[0]=o[5]=o[10]=o[15]=1; return o; }
+function mul(o,a,b){
+  for(let c=0;c<4;c++)for(let r=0;r<4;r++)
+    o[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3];
+  return o;
+}
+function persp(o,fovy,asp,n,f){
+  const t=1/Math.tan(fovy/2); o.fill(0);
+  o[0]=t/asp;o[5]=t;o[10]=(f+n)/(n-f);o[11]=-1;o[14]=2*f*n/(n-f); return o;
+}
+function look(o,eye,c,up){
+  let zx=eye[0]-c[0],zy=eye[1]-c[1],zz=eye[2]-c[2];
+  let l=Math.hypot(zx,zy,zz)||1; zx/=l;zy/=l;zz/=l;
+  let xx=up[1]*zz-up[2]*zy, xy=up[2]*zx-up[0]*zz, xz=up[0]*zy-up[1]*zx;
+  l=Math.hypot(xx,xy,xz)||1; xx/=l;xy/=l;xz/=l;
+  const yx=zy*xz-zz*xy, yy=zz*xx-zx*xz, yz=zx*xy-zy*xx;
+  o[0]=xx;o[1]=yx;o[2]=zx;o[3]=0;
+  o[4]=xy;o[5]=yy;o[6]=zy;o[7]=0;
+  o[8]=xz;o[9]=yz;o[10]=zz;o[11]=0;
+  o[12]=-(xx*eye[0]+xy*eye[1]+xz*eye[2]);
+  o[13]=-(yx*eye[0]+yy*eye[1]+yz*eye[2]);
+  o[14]=-(zx*eye[0]+zy*eye[1]+zz*eye[2]);
+  o[15]=1; return o;
+}
+function trans(o,x,y,z){ ident(o); o[12]=x;o[13]=y;o[14]=z; return o; }
+
+function invert(out, a){
+  const a00=a[0],a01=a[1],a02=a[2],a03=a[3],
+        a10=a[4],a11=a[5],a12=a[6],a13=a[7],
+        a20=a[8],a21=a[9],a22=a[10],a23=a[11],
+        a30=a[12],a31=a[13],a32=a[14],a33=a[15];
+  const b00=a00*a11-a01*a10, b01=a00*a12-a02*a10, b02=a00*a13-a03*a10,
+        b03=a01*a12-a02*a11, b04=a01*a13-a03*a11, b05=a02*a13-a03*a12,
+        b06=a20*a31-a21*a30, b07=a20*a32-a22*a30, b08=a20*a33-a23*a30,
+        b09=a21*a32-a22*a31, b10=a21*a33-a23*a31, b11=a22*a33-a23*a32;
+  let det = b00*b11-b01*b10+b02*b09+b03*b08-b04*b07+b05*b06;
+  if(!det) return null;
+  det = 1.0/det;
+  out[0]=(a11*b11-a12*b10+a13*b09)*det;  out[1]=(a02*b10-a01*b11-a03*b09)*det;
+  out[2]=(a31*b05-a32*b04+a33*b03)*det;  out[3]=(a22*b04-a21*b05-a23*b03)*det;
+  out[4]=(a12*b08-a10*b11-a13*b07)*det;  out[5]=(a00*b11-a02*b08+a03*b07)*det;
+  out[6]=(a32*b02-a30*b05-a33*b01)*det;  out[7]=(a20*b05-a22*b02+a23*b01)*det;
+  out[8]=(a10*b10-a11*b08+a13*b06)*det;  out[9]=(a01*b08-a00*b10-a03*b06)*det;
+  out[10]=(a30*b04-a31*b02+a33*b00)*det; out[11]=(a21*b02-a20*b04-a23*b00)*det;
+  out[12]=(a11*b07-a10*b09-a12*b06)*det; out[13]=(a00*b09-a01*b07+a02*b06)*det;
+  out[14]=(a31*b01-a30*b03-a32*b00)*det; out[15]=(a20*b03-a21*b01+a22*b00)*det;
+  return out;
+}
+
+/* 射线 × 轴对齐包围盒 */
+function rayBox(o, d, mn, mx){
+  let t0 = -1e9, t1 = 1e9;
+  for(let i=0;i<3;i++){
+    if(Math.abs(d[i]) < 1e-9){
+      if(o[i] < mn[i] || o[i] > mx[i]) return null;
+      continue;
+    }
+    let ta = (mn[i]-o[i])/d[i], tb = (mx[i]-o[i])/d[i];
+    if(ta > tb){ const s=ta; ta=tb; tb=s; }
+    if(ta > t0) t0 = ta;
+    if(tb < t1) t1 = tb;
+    if(t0 > t1) return null;
+  }
+  return t0 > 0 ? t0 : (t1 > 0 ? t1 : null);
+}
+
+/* ---------------- 几何构建 ---------------- */
+class Buf{
+  constructor(){ this.p=[]; this.n=[]; this.i=[]; this.e=[]; this.m=[]; this.v=0; this.cur=0; }
+  setMat(v){ this.cur=v; return this; }
+  tri(a,b,c,n){
+    const o=this.v, mt=this.cur;
+    this.p.push(a[0],a[1],a[2], b[0],b[1],b[2], c[0],c[1],c[2]);
+    for(let k=0;k<3;k++){ this.n.push(n[0],n[1],n[2]); this.m.push(mt); }
+    this.i.push(o,o+1,o+2); this.v+=3;
+  }
+  quad(a,b,c,d,n){
+    const o=this.v, mt=this.cur;
+    this.p.push(a[0],a[1],a[2], b[0],b[1],b[2], c[0],c[1],c[2], d[0],d[1],d[2]);
+    for(let k=0;k<4;k++){ this.n.push(n[0],n[1],n[2]); this.m.push(mt); }
+    this.i.push(o,o+1,o+2, o,o+2,o+3); this.v+=4;
+  }
+  box(cx,cy,cz,w,h,d,edges=true){
+    const x0=cx-w/2,x1=cx+w/2, y0=cy-h/2,y1=cy+h/2, z0=cz-d/2,z1=cz+d/2;
+    this.quad([x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1],[1,0,0]);
+    this.quad([x0,y0,z1],[x0,y1,z1],[x0,y1,z0],[x0,y0,z0],[-1,0,0]);
+    this.quad([x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],[0,1,0]);
+    this.quad([x0,y0,z1],[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[0,-1,0]);
+    this.quad([x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],[0,0,1]);
+    this.quad([x1,y0,z0],[x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[0,0,-1]);
+    if(edges){
+      const c=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],
+               [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
+      const E=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+      for(const [a,b] of E) this.e.push(c[a][0],c[a][1],c[a][2], c[b][0],c[b][1],c[b][2]);
+    }
+  }
+  cylZ(cx,cy,cz,r,h,seg=22,edges=true){
+    const z0=cz-h/2, z1=cz+h/2;
+    for(let k=0;k<seg;k++){
+      const a0=k/seg*Math.PI*2, a1=(k+1)/seg*Math.PI*2, am=(a0+a1)/2;
+      const nx=Math.cos(am), ny=Math.sin(am);
+      this.quad([cx+r*Math.cos(a0),cy+r*Math.sin(a0),z0],
+                [cx+r*Math.cos(a0),cy+r*Math.sin(a0),z1],
+                [cx+r*Math.cos(a1),cy+r*Math.sin(a1),z1],
+                [cx+r*Math.cos(a1),cy+r*Math.sin(a1),z0],[nx,ny,0]);
+      this.tri([cx,cy,z1],[cx+r*Math.cos(a0),cy+r*Math.sin(a0),z1],
+               [cx+r*Math.cos(a1),cy+r*Math.sin(a1),z1],[0,0,1]);
+      this.tri([cx,cy,z0],[cx+r*Math.cos(a1),cy+r*Math.sin(a1),z0],
+               [cx+r*Math.cos(a0),cy+r*Math.sin(a0),z0],[0,0,-1]);
+    }
+    if(edges){
+      for(const z of [z0,z1]){
+        for(let k=0;k<seg;k++){
+          const a0=k/seg*Math.PI*2, a1=(k+1)/seg*Math.PI*2;
+          this.e.push(cx+r*Math.cos(a0),cy+r*Math.sin(a0),z,
+                      cx+r*Math.cos(a1),cy+r*Math.sin(a1),z);
+        }
+      }
+    }
+  }
+  cylX(cx,cy,cz,r,h,seg=22){
+    const x0=cx-h/2, x1=cx+h/2;
+    for(let k=0;k<seg;k++){
+      const a0=k/seg*Math.PI*2, a1=(k+1)/seg*Math.PI*2, am=(a0+a1)/2;
+      const ny=Math.cos(am), nz=Math.sin(am);
+      this.quad([x0,cy+r*Math.cos(a0),cz+r*Math.sin(a0)],
+                [x1,cy+r*Math.cos(a0),cz+r*Math.sin(a0)],
+                [x1,cy+r*Math.cos(a1),cz+r*Math.sin(a1)],
+                [x0,cy+r*Math.cos(a1),cz+r*Math.sin(a1)],[0,ny,nz]);
+      this.tri([x1,cy,cz],[x1,cy+r*Math.cos(a0),cz+r*Math.sin(a0)],
+               [x1,cy+r*Math.cos(a1),cz+r*Math.sin(a1)],[1,0,0]);
+      this.tri([x0,cy,cz],[x0,cy+r*Math.cos(a1),cz+r*Math.sin(a1)],
+               [x0,cy+r*Math.cos(a0),cz+r*Math.sin(a0)],[-1,0,0]);
+    }
+  }
+  /* 风扇：面朝 ±Z */
+  fan(cx,cy,cz){
+    const s=MM.fan, f=12, t=MM.fanT;
+    this.box(cx,cy+s/2-f/2,cz,s,f,t);
+    this.box(cx,cy-s/2+f/2,cz,s,f,t);
+    this.box(cx-s/2+f/2,cy,cz,f,s-2*f,t);
+    this.box(cx+s/2-f/2,cy,cz,f,s-2*f,t);
+    this.cylZ(cx,cy,cz,20,24,18,false);
+    const N=7, r0=20, r1=50;
+    for(let k=0;k<N;k++){
+      const a0=k/N*Math.PI*2, a1=a0+0.62;
+      const p0=[cx+r0*Math.cos(a0),cy+r0*Math.sin(a0),cz+7];
+      const p1=[cx+r1*Math.cos(a0),cy+r1*Math.sin(a0),cz-4];
+      const p2=[cx+r1*Math.cos(a1),cy+r1*Math.sin(a1),cz-4];
+      const p3=[cx+r0*Math.cos(a1),cy+r0*Math.sin(a1),cz+7];
+      const u=[p1[0]-p0[0],p1[1]-p0[1],p1[2]-p0[2]];
+      const v=[p2[0]-p1[0],p2[1]-p1[1],p2[2]-p1[2]];
+      let nx=u[1]*v[2]-u[2]*v[1], ny=u[2]*v[0]-u[0]*v[2], nz=u[0]*v[1]-u[1]*v[0];
+      const ln=Math.hypot(nx,ny,nz)||1;
+      this.quad(p0,p1,p2,p3,[nx/ln,ny/ln,nz/ln]);
+    }
+  }
+  /* 沿折线的 n 边形截面线缆（Catmull-Rom 平滑） */
+  cable(pts,w,sub,sides){
+    sub = sub || 7; sides = sides || 8;
+    const P=[];
+    for(let i=0;i<pts.length-1;i++){
+      const p0=pts[Math.max(0,i-1)], p1=pts[i], p2=pts[i+1], p3=pts[Math.min(pts.length-1,i+2)];
+      for(let k=0;k<sub;k++){
+        const t=k/sub, t2=t*t, t3=t2*t, q=[0,0,0];
+        for(let c=0;c<3;c++){
+          q[c]=0.5*(2*p1[c] + (-p0[c]+p2[c])*t
+                  + (2*p0[c]-5*p1[c]+4*p2[c]-p3[c])*t2
+                  + (-p0[c]+3*p1[c]-3*p2[c]+p3[c])*t3);
+        }
+        P.push(q);
+      }
+    }
+    P.push(pts[pts.length-1]);
+    for(let k=0;k<P.length-1;k++) this.seg(P[k],P[k+1],w,sides);
+  }
+  seg(p0,p1,w,sides){
+    sides = sides || 8;
+    let dx=p1[0]-p0[0], dy=p1[1]-p0[1], dz=p1[2]-p0[2];
+    const L=Math.hypot(dx,dy,dz)||1; dx/=L;dy/=L;dz/=L;
+    let ux=0,uy=1,uz=0;
+    if(Math.abs(dy)>0.9){ ux=1;uy=0;uz=0; }
+    let rx=dy*uz-dz*uy, ry=dz*ux-dx*uz, rz=dx*uy-dy*ux;
+    let rl=Math.hypot(rx,ry,rz)||1; rx/=rl;ry/=rl;rz/=rl;
+    const sx=ry*dz-rz*dy, sy=rz*dx-rx*dz, sz=rx*dy-ry*dx;
+    const ring=[];
+    for(let k=0;k<sides;k++){
+      const a=k/sides*Math.PI*2, ca=Math.cos(a), sa=Math.sin(a);
+      ring.push([rx*ca+sx*sa, ry*ca+sy*sa, rz*ca+sz*sa]);
+    }
+    for(let k=0;k<sides;k++){
+      const o0=ring[k], o1=ring[(k+1)%sides];
+      const A=[p0[0]+o0[0]*w,p0[1]+o0[1]*w,p0[2]+o0[2]*w];
+      const B=[p0[0]+o1[0]*w,p0[1]+o1[1]*w,p0[2]+o1[2]*w];
+      const C=[p1[0]+o1[0]*w,p1[1]+o1[1]*w,p1[2]+o1[2]*w];
+      const D=[p1[0]+o0[0]*w,p1[1]+o0[1]*w,p1[2]+o0[2]*w];
+      let nx=(o0[0]+o1[0])*0.5, ny=(o0[1]+o1[1])*0.5, nz=(o0[2]+o1[2])*0.5;
+      const nl=Math.hypot(nx,ny,nz)||1;
+      this.quad(A,B,C,D,[nx/nl,ny/nl,nz/nl]);
+    }
+    // 只保留两侧棱线，避免线缆被描边画成铁丝
+    for(const idx of [0, Math.floor(sides/2)]){
+      const o=ring[idx];
+      this.e.push(p0[0]+o[0]*w,p0[1]+o[1]*w,p0[2]+o[2]*w,
+                  p1[0]+o[0]*w,p1[1]+o[1]*w,p1[2]+o[2]*w);
+    }
+  }
+}
+
+/* ---------------- WebGL ---------------- */
+const canvas = $("#gl");
+const gl = canvas.getContext("webgl", {antialias:true, alpha:false, preserveDrawingBuffer:false});
+if(!gl){ document.body.innerHTML = "<p style='padding:40px'>此浏览器不支持 WebGL</p>"; }
+
+const VS = `
+attribute vec3 aP; attribute vec3 aN; attribute float aMat;
+uniform mat4 uMVP, uM;
+varying vec3 vN, vW; varying float vMat;
+void main(){ vW=(uM*vec4(aP,1.0)).xyz; vN=aN; vMat=aMat; gl_Position=uMVP*vec4(aP,1.0); }`;
+
+const FS = `
+precision mediump float;
+varying vec3 vN, vW; varying float vMat;
+uniform vec3 uC, uEye;
+uniform float uA, uTime, uHi, uAcc;
+uniform vec4 uClip;
+
+void main(){
+  if(dot(vW, uClip.xyz) > uClip.w) discard;
+
+  vec3 n = normalize(vN);
+  vec3 v = normalize(uEye - vW);
+  vec3 L = normalize(vec3(0.42,0.80,0.44));
+  float d  = max(dot(n,L),0.0);
+  float hemi = 0.5 + 0.5*n.y;
+  vec3 base = uC;
+
+  if(vMat > 2.5 && vMat < 3.5){
+    /* 自发光 RGB 灯带 */
+    vec3 h = 0.5 + 0.5*cos(6.28318*(uTime*0.06 + vec3(0.0,0.33,0.67)));
+    float band = 0.72 + 0.28*sin(vW.z*0.35 + uTime*1.6);
+    vec3 c = mix(uC, h, 0.82) * (0.72 + 0.34*band);
+    gl_FragColor = vec4(mix(c, vec3(1.0), uHi*0.35), uA);
+    return;
+  }
+
+  if(vMat > 0.5 && vMat < 1.5){
+    /* PCB：走线网格 + 焊盘 */
+    vec2 g = abs(fract(vW.yz/2.6) - 0.5);
+    float line = 1.0 - smoothstep(0.40, 0.485, max(g.x, g.y));
+    vec2 cell = fract(vW.yz/9.0) - 0.5;
+    float pad = 1.0 - smoothstep(0.15, 0.27, length(cell));
+    base = mix(uC, uC*1.45 + vec3(0.02,0.05,0.03), line*0.26 + pad*0.30);
+  } else if(vMat > 1.5 && vMat < 2.5){
+    /* 编织网套管：三向交织条纹 */
+    float w1 = sin(vW.x*0.85 + vW.y*0.85);
+    float w2 = sin(vW.y*0.85 + vW.z*0.85);
+    float w3 = sin(vW.z*0.85 + vW.x*0.85);
+    float weave = (abs(w1)+abs(w2)+abs(w3))/3.0;
+    base = uC*(0.78 + 0.42*weave);
+  } else if(vMat > 3.5 && vMat < 4.5){
+    /* 金属鳍片：边缘泛白、面心压暗 */
+    float rim = pow(1.0 - max(dot(n,v),0.0), 2.0);
+    base = uC*(0.86 + 0.55*rim);
+  }
+
+  vec3 c = base * (0.38 + 0.26*hemi + 0.66*d);
+  c += vec3(pow(1.0-max(dot(n,v),0.0), 3.0) * 0.09);
+
+  if(uAcc > 0.0){
+    /* 正在拆出的零件：橙色边缘发光 + 轻微着色，不夺走材质本色 */
+    float rimA = pow(1.0 - max(dot(n,v),0.0), 1.4);
+    c = mix(c, vec3(0.86,0.36,0.13), uAcc*(0.03 + 0.14*rimA));
+  }
+
+  if(uHi > 0.0){
+    float rim2 = pow(1.0 - max(dot(n,v),0.0), 1.5);
+    c = mix(c, vec3(0.94,0.42,0.16), uHi*(0.26 + 0.50*rim2));
+  }
+  gl_FragColor = vec4(c, uA);
+}`;
+
+const LVS = `
+attribute vec3 aP; uniform mat4 uMVP, uM; varying vec3 vW;
+void main(){ vW=(uM*vec4(aP,1.0)).xyz; gl_Position=uMVP*vec4(aP,1.0); }`;
+
+const LFS = `
+precision mediump float; varying vec3 vW;
+uniform vec3 uC; uniform vec4 uClip; uniform float uA;
+void main(){ if(dot(vW,uClip.xyz)>uClip.w) discard; gl_FragColor=vec4(uC,uA); }`;
+
+function sh(type, src){
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+function prog(vs, fs){
+  const p = gl.createProgram();
+  gl.attachShader(p, sh(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  return p;
+}
+const P_SOLID = prog(VS, FS), P_LINE = prog(LVS, LFS);
+const U = {
+  mvp: gl.getUniformLocation(P_SOLID,"uMVP"), m: gl.getUniformLocation(P_SOLID,"uM"),
+  c: gl.getUniformLocation(P_SOLID,"uC"), a: gl.getUniformLocation(P_SOLID,"uA"),
+  clip: gl.getUniformLocation(P_SOLID,"uClip"), eye: gl.getUniformLocation(P_SOLID,"uEye"),
+  time: gl.getUniformLocation(P_SOLID,"uTime"), hi: gl.getUniformLocation(P_SOLID,"uHi"),
+  acc: gl.getUniformLocation(P_SOLID,"uAcc")
+};
+const ATTR = {
+  p: gl.getAttribLocation(P_SOLID,"aP"),
+  n: gl.getAttribLocation(P_SOLID,"aN"),
+  m: gl.getAttribLocation(P_SOLID,"aMat")
+};
+const UL = {
+  mvp: gl.getUniformLocation(P_LINE,"uMVP"), m: gl.getUniformLocation(P_LINE,"uM"),
+  c: gl.getUniformLocation(P_LINE,"uC"), a: gl.getUniformLocation(P_LINE,"uA"),
+  clip: gl.getUniformLocation(P_LINE,"uClip")
+};
+
+function upload(buf){
+  const n = buf.i.length;
+  const pos = new Float32Array(n*3), nor = new Float32Array(n*3), mat = new Float32Array(n);
+  for(let k=0;k<n;k++){
+    const v = buf.i[k];
+    pos[k*3]=buf.p[v*3]; pos[k*3+1]=buf.p[v*3+1]; pos[k*3+2]=buf.p[v*3+2];
+    nor[k*3]=buf.n[v*3]; nor[k*3+1]=buf.n[v*3+1]; nor[k*3+2]=buf.n[v*3+2];
+    mat[k]=buf.m[v]||0;
+  }
+  const vb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+  gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
+  const nb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, nb);
+  gl.bufferData(gl.ARRAY_BUFFER, nor, gl.STATIC_DRAW);
+  const mb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, mb);
+  gl.bufferData(gl.ARRAY_BUFFER, mat, gl.STATIC_DRAW);
+  const count = n;
+  let lb = null, lcount = 0;
+  if(buf.e.length){
+    lb = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, lb);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(buf.e), gl.STATIC_DRAW);
+    lcount = buf.e.length/3;
+  }
+  return {vb, nb, mb, lb, count, lcount};
+}
+
+/* ============================================================
+   零件定义
+   dir  = 拆出方向（物理方向），dist = 抽出距离
+   [a,b] = 该零件在 t 上的相位窗口
+   ============================================================ */
+const PARTS = [];
+function hashStr(s){
+  let h = 2166136261;
+  for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return ((h>>>0) % 10000) / 10000;
+}
+function part(o){
+  const b = new Buf(); o.build(b);
+  const p = o.pos || [0,0,0];
+  o.jit = (hashStr(o.id) * 2 - 1) * 0.012;   // 确定性错帧，非随机
+  // 几何按世界坐标建模 → 在此减去锚点，转为局部坐标，避免渲染时二次偏移
+  for(let i=0;i<b.p.length;i+=3){ b.p[i]-=p[0]; b.p[i+1]-=p[1]; b.p[i+2]-=p[2]; }
+  for(let i=0;i<b.e.length;i+=3){ b.e[i]-=p[0]; b.e[i+1]-=p[1]; b.e[i+2]-=p[2]; }
+  // 局部包围盒
+  let x0=1e9,y0=1e9,z0=1e9,x1=-1e9,y1=-1e9,z1=-1e9;
+  for(let i=0;i<b.p.length;i+=3){
+    x0=Math.min(x0,b.p[i]); x1=Math.max(x1,b.p[i]);
+    y0=Math.min(y0,b.p[i+1]); y1=Math.max(y1,b.p[i+1]);
+    z0=Math.min(z0,b.p[i+2]); z1=Math.max(z1,b.p[i+2]);
+  }
+  o.bb = [x0,y0,z0,x1,y1,z1];
+  o.g = upload(b); o.pos = p;
+  PARTS.push(o); return o;
+}
+
+/* --- 机箱本体（静态） --- */
+part({
+  id:"case", name:"机箱框架", color:[0.64,0.63,0.60], fixed:true,
+  pos:[0,0,0], dir:[0,0,0], dist:0, a:0, b:0,
+  build(b){
+    const hw=105, hh=225, hd=235, t=4;
+    b.box(0, -hh+t/2, 0, 210, t, 470, false);          // 底板
+    b.box(0,  hh-t/2, 0, 210, t, 470, false);          // 顶板
+    // 四根立柱（不是整面墙，否则看不见内部）
+    for(const sx of [-1,1]) for(const sz of [-1,1])
+      b.box(sx*(hw-13), 0, sz*(hd-13), 26, 450, 26, false);
+    // 后板：留出 120mm 风扇开口
+    const hx0=-95, hx1=25, hy0=60, hy1=180;
+    b.box((-105+hx0)/2, 0, -hd+t/2, hx0+105, 450, t, false);
+    b.box((hx1+105)/2,  0, -hd+t/2, 105-hx1, 450, t, false);
+    b.box((hx0+hx1)/2, (hy1+225)/2, -hd+t/2, hx1-hx0, 225-hy1, t, false);
+    b.box((hx0+hx1)/2, (-225+hy0)/2, -hd+t/2, hx1-hx0, hy0+225, t, false);
+    // 主板托盘
+    b.box(TRAY_X, 0, -5, MM.trayT, 400, 390);
+    // 电源仓盖板
+    b.box(0, -134, -20, 196, 1.6, 400);
+    // 硬盘笼
+    for(const y of [-200,-173.9]) b.box(-44.2, y+13.05, 128.5, 104, 1.2, 150, false);
+    b.box(-95, -173.9, 128.5, 2, 52, 150, false);
+    b.box(  6.6, -173.9, 128.5, 2, 52, 150, false);
+    // 脚垫
+    for(const sx of [-1,1]) for(const sz of [-1,1])
+      b.box(sx*88, -hh-6, sz*205, 26, 12, 26, false);
+    // 铜柱 9 个
+    for(const y of [-100,20,140]) for(const z of [-100,0,100])
+      b.cylZ(TRAY_FACE+MM.standoff/2, y, z, 3.2, MM.standoff, 10, false);
+  }
+});
+
+/* --- 左侧钢板 --- */
+part({
+  id:"sideL", name:"左侧钢板", color:[0.70,0.69,0.66],
+  pos:[-105.5,0,0], dir:[-1,-0.45,-0.85], dist:300, a:0.00, b:0.08,
+  build(b){ b.box(-105.5,0,0,1,MM.caseH,MM.caseD); }
+});
+
+/* --- 右侧透侧板（玻璃，主板元件面朝它） --- */
+part({
+  id:"sideR", name:"右侧透侧板", color:[0.72,0.80,0.83], alpha:0.20,
+  pos:[105.5,0,0], dir:[1,0,-1], dist:320, a:0.02, b:0.10,
+  build(b){ b.box(105.5,0,0,1,MM.caseH,MM.caseD); }
+});
+
+/* --- 前面板 --- */
+part({
+  id:"front", name:"前面板", color:[0.60,0.59,0.56],
+  pos:[0,0,225], dir:[0,0.28,1], dist:300, a:0.06, b:0.14,
+  build(b){
+    b.box(0,0,225,MM.caseW,MM.caseH,20);
+    for(let i=0;i<15;i++) b.box(0,-196+i*28,237,170,4,4,false);  // 外侧网孔横棱
+    b.box(0,196,232,180,16,6,false);                              // 顶部饰条
+    b.box(0,-196,232,180,16,6,false);
+  }
+});
+
+/* --- 前部进风扇 ×2 --- */
+part({
+  id:"fansF", name:"前置风扇 120mm ×2", color:[0.34,0.36,0.39],
+  pos:[-35,32.5,202.5], dir:[0,0.62,1], dist:250, a:0.10, b:0.18,
+  build(b){ b.fan(-35,-30,202.5); b.fan(-35,95,202.5); }
+});
+
+/* --- 线缆 --- */
+part({
+  id:"cables", name:"供电线缆", color:[0.26,0.27,0.30],
+  pos:[0,0,0], dir:[0,1,0.15], dist:260, a:0.14, b:0.22,
+  build(b){
+    b.setMat(2);                                         // 编织网套管
+    const T=-93;
+    b.cable([[-34,-134,-150],[T,-126,-146],[T,-70,-70],[T,40,-30],[-88,110,-30]],7);
+    b.cable([[-20,-134,-150],[T,-124,-142],[T,-68,-66],[T,42,-26],[-88,112,-26]],7);
+    b.cable([[ -6,-134,-150],[T,-122,-138],[T,-66,-62],[T,44,-22],[-88,114,-22]],7);
+    b.cable([[  8,-134,-150],[T,-120,-134],[T,-64,-58],[T,46,-18],[-88,116,-18]],7);
+    b.cable([[ 30,-134,-140],[T,-112,-120],[T,-40,10],[T,20,70],[-70,-30,110]],6);
+    b.setMat(0);
+  }
+});
+
+/* --- 显卡 --- */
+part({
+  id:"gpu", name:"显卡 300mm", color:[0.30,0.32,0.36],
+  pos:[-63.3,-15,30], dir:[1,-0.55,0.55], dist:300, a:0.20, b:0.32,
+  build(b){
+    const x0=PCB_FRONT, x1=x0+48.4;
+    b.box(x0+0.8, -15, 30, 1.6, MM.gpuH, MM.gpuL);               // PCB
+    b.box((x0+1.6+x1)/2, -15, 30, x1-x0-1.6, MM.gpuH, MM.gpuL);  // 外壳
+    for(const z of [-70,30,130]){
+      b.cylX(x1, -15, z, 42, 4, 44);                              // 风扇环（细）
+      b.cylX(x1+1.5, -15, z, 34, 3, 44);
+      b.cylX(x1+3, -15, z, 13, 5, 26);
+    }
+    b.setMat(3);                                                  // RGB 灯带（细线）
+    b.box(x1-1.6, 46.4, 30, 3.2, 3.0, 268);
+    b.box(x0+3, 46.4, -116, 3.0, 3.0, 24);
+    b.setMat(0);
+    b.box(x0+2, -70, -118, 6, 10, 6);                             // 挡板
+  }
+});
+
+/* --- 内存 ×2 --- */
+part({
+  id:"ram", name:"DDR 内存 ×2", color:[0.24,0.28,0.36],
+  pos:[-84.3,116.7,37.8], dir:[1,0.45,0.95], dist:320, a:0.28, b:0.38,
+  build(b){
+    for(const z of [28.89,46.67]){
+      b.box(PCB_FRONT+4, 116.7, z, MM.dimmT, MM.dimmL, 7);
+      b.box(PCB_FRONT+4, 116.7, z, MM.dimmT+2, MM.dimmL*0.86, 7.6, false);
+    }
+  }
+});
+
+/* --- CPU 散热器 --- */
+part({
+  id:"cooler", name:"CPU 散热器 158mm", color:[0.62,0.65,0.70],
+  pos:[-3.3,125,-7.5], dir:[1,1.15,0.10], dist:380, a:0.34, b:0.46,
+  build(b){
+    b.box(-73.3,125,-20, 6, 50, 50);                     // 底座
+    b.setMat(4);                                         // 鳍片：金属边缘泛白
+    for(let i=0;i<18;i++){
+      b.box(-70.3+i*7.9, 125, -20, 2.6, 125, 45, false);
+    }
+    b.setMat(0);
+    b.box(2, 125, -20, 132, 3, 3, false);                // 顶盖横梁
+    b.box(2, 125, -20, 3, 125, 3, false);                // 顶盖竖梁
+    b.fan(-10.3,125,15);                                 // 120mm 风扇
+  }
+});
+
+/* --- CPU --- */
+part({
+  id:"cpu", name:"CPU 处理器", color:[0.80,0.79,0.72],
+  pos:[-78.3,125,-20], dir:[1,1.95,0.25], dist:460, a:0.44, b:0.52,
+  build(b){
+    b.box(PCB_FRONT+4, 125, -20, 8, 45, 37.5);       // 插座
+    b.box(PCB_FRONT+10, 125, -20, 4, 45, 37.5);      // 芯片
+  }
+});
+
+/* --- M.2 SSD --- */
+part({
+  id:"m2", name:"M.2 2280 SSD", color:[0.28,0.30,0.34],
+  pos:[-87.55,63,-60], dir:[1,-1.00,0.35], dist:330, a:0.48, b:0.56,
+  build(b){
+    b.box(PCB_FRONT+1, 63, -60, MM.m2T, MM.m2W, MM.m2L);
+    b.box(PCB_FRONT+3, 63, -60, 3, MM.m2W-4, MM.m2L*0.7, false);
+  }
+});
+
+/* --- 3.5 英寸硬盘 ×2 --- */
+part({
+  id:"hdd", name:"3.5\" 硬盘 ×2", color:[0.55,0.56,0.58],
+  pos:[-44.2,-173.9,128.5], dir:[0,-0.95,1], dist:300, a:0.54, b:0.64,
+  build(b){
+    for(const y of [-186.95,-160.85]){
+      b.box(-44.2, y, 128.5, MM.hddW, MM.hddH, MM.hddL);
+      b.cylZ(-44.2, y, 90, 22, MM.hddH+1, 20, false);
+    }
+  }
+});
+
+/* --- 2.5 英寸 SSD ×2 --- */
+part({
+  id:"ssd", name:"2.5\" SSD ×2", color:[0.30,0.32,0.35],
+  pos:[-10,-129.5,4.9], dir:[1,-0.75,-0.60], dist:300, a:0.60, b:0.68,
+  build(b){
+    for(const x of [-38,18]){
+      b.box(x, -129.5, 4.9, MM.ssdL, MM.ssdT, MM.ssdW);
+    }
+  }
+});
+
+/* --- 电源 --- */
+part({
+  id:"psu", name:"ATX 电源", color:[0.33,0.34,0.38],
+  pos:[0,-177,-145], dir:[0,-0.20,-1], dist:280, a:0.66, b:0.76,
+  build(b){
+    b.box(0,-177,-145, MM.psuW, MM.psuH, MM.psuD);
+    b.cylZ(0,-219, -145, 52, 3, 22, false);
+  }
+});
+
+/* --- 后部排风扇 --- */
+part({
+  id:"fanR", name:"后置风扇 120mm", color:[0.34,0.36,0.39],
+  pos:[-35,125,-202.5], dir:[0.6,0.80,-0.6], dist:330, a:0.72, b:0.80,
+  build(b){ b.fan(-35,125,-202.5); }
+});
+
+/* --- 主板 --- */
+part({
+  id:"mobo", name:"ATX 主板", color:[0.16,0.30,0.26],
+  pos:[PCB_C,32.5,2], dir:[1,0.15,-0.35], dist:380, a:0.80, b:0.94,
+  build(b){
+    b.setMat(1);                                         // PCB 基材
+    b.box(PCB_C, 32.5, 2, MM.pcb, MM.boardH, MM.boardW);
+    b.setMat(0);
+
+    b.box(PCB_FRONT+8, 120, -105, 16, 158, 30);          // 后置 I/O 接口区
+    b.box(PCB_FRONT+6, -40, 55, 12, 55, 55);             // 芯片组散热片
+    b.box(PCB_FRONT+5, 172, -40, 10, 26, 120);           // VRM 散热片（上）
+    b.box(PCB_FRONT+5, 120, -78, 10, 90, 18);            // VRM 散热片（后）
+
+    for(const z of [20,28.89,37.78,46.67]){              // 内存插槽
+      b.box(PCB_FRONT+5, 116.7, z, 10, MM.dimmL, 3.4, false);
+    }
+    for(let i=0;i<4;i++){                                // PCIe 插槽
+      b.box(PCB_FRONT+3, -75-i*20.32, -20, 6, 5, 89, false);
+    }
+    b.box(PCB_FRONT+3, 63, -60, 6, 26, 90, false);       // M.2 插槽
+
+    b.box(PCB_FRONT+7, -52, 112, 14, 50, 16);            // 24-pin 供电口
+    b.box(PCB_FRONT+6, 176, -40, 12, 16, 24);            // 8-pin EPS 供电口
+
+    // 固态电容：沿板边两排
+    for(let i=0;i<14;i++){
+      b.cylX(PCB_FRONT+3.5, 178, -62+i*12.5, 3.1, 7, 10);       // 顶边
+    }
+    for(let i=0;i<10;i++){
+      b.cylX(PCB_FRONT+3.5, -108+i*13.5, 116, 3.1, 7, 10);      // 前边
+    }
+    for(let i=0;i<6;i++){
+      b.cylX(PCB_FRONT+3.5, 8-i*7.4, 96, 2.6, 6, 9);            // 芯片组旁
+    }
+  }
+});
+
+/* ============================================================
+   model(t)：单一输入的纯函数
+   ============================================================ */
+/* 不透明先画，透明后画 */
+const DRAW = [];
+for(const p of PARTS) if((p.alpha||1) >= 0.999) DRAW.push(p);
+for(const p of PARTS) if((p.alpha||1) <  0.999) DRAW.push(p);
+
+/* 爆炸视图整体缩放：让机箱在画面里保持主体 */
+const EXPLODE = 0.58;
+
+/* 结尾带一点过冲回弹，飞出去更有机械力 */
+const easeOutBack = x => {
+  const c1 = 1.70158, c3 = c1 + 1;
+  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+};
+
+function model(t){
+  const out = {};
+  for(const p of PARTS){
+    if(p.fixed){ out[p.id] = {x:p.pos[0], y:p.pos[1], z:p.pos[2], prog:1, moving:false}; continue; }
+    // 每个零件的相位窗口整体平移 ±0.012，避免所有零件同时起步
+    const u = phase(t, p.a + p.jit, p.b + p.jit);
+    const e = easeOutBack(u);
+    const d = p.dir, L = Math.hypot(d[0],d[1],d[2]) || 1;
+    out[p.id] = {
+      x: p.pos[0] + d[0]/L * p.dist * EXPLODE * e,
+      y: p.pos[1] + d[1]/L * p.dist * EXPLODE * e,
+      z: p.pos[2] + d[2]/L * p.dist * EXPLODE * e,
+      prog: u,
+      moving: u > 0.001 && u < 0.999
+    };
+  }
+  return out;
+}
+
+/* 由 model 派生的真实包围盒 → 相机自动取景 */
+function bounds(m){
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9,z0=1e9,z1=-1e9;
+  for(const p of PARTS){
+    const q = m[p.id], b = p.bb;
+    x0=Math.min(x0,q.x+b[0]); x1=Math.max(x1,q.x+b[3]);
+    y0=Math.min(y0,q.y+b[1]); y1=Math.max(y1,q.y+b[4]);
+    z0=Math.min(z0,q.z+b[2]); z1=Math.max(z1,q.z+b[5]);
+  }
+  return {c:[(x0+x1)/2,(y0+y1)/2,(z0+z1)/2], r:Math.hypot(x1-x0,y1-y0,z1-z0)/2, y0:y0};
+}
+
+/* ============================================================
+   相机
+   ============================================================ */
+const cam = {theta:38*Math.PI/180, phi:16*Math.PI/180, dist:1500, zoom:1, target:[0,0,0], want:null};
+
+const VIEWS = {
+  hero:   {theta:38, phi:11},
+  front:  {theta:0,  phi:6},
+  side:   {theta:62, phi:7},
+  top:    {theta:0,  phi:74},
+  inside: {theta:30, phi:4}
+};
+
+/* ============================================================
+   状态
+   ============================================================ */
+const state = { t:0, cut:false, iso:null, hover:null, tour:true, gen:0, lastInput:performance.now() };
+
+/* ============================================================
+   渲染
+   ============================================================ */
+const mP = mat4(), mV = mat4(), mM = mat4(), mVP = mat4(), mMVP = mat4();
+let curM = null;
+
+function resize(){
+  const s = Math.min(innerWidth/1600, innerHeight/900);
+  $("#stage").style.transform = "scale("+s+")";
+  const dpr = Math.min(devicePixelRatio||1, 2);
+  const w = Math.round(1120*dpr), h = Math.round(900*dpr);
+  if(canvas.width!==w || canvas.height!==h){ canvas.width=w; canvas.height=h; }
+  gl.viewport(0,0,canvas.width,canvas.height);
+}
+addEventListener("resize", resize);
+
+const BG = [0.953,0.945,0.922];
+
+function drawFrame(now){
+  resize();
+  const t = state.t;
+  const m = model(t);
+  curM = m;
+
+  const fov = 30*Math.PI/180;
+  const bb = bounds(m);
+  // 相机距离只随 t 变化，避免被离群零件带偏
+  const wantD = (1420 + 560 * t) * cam.zoom;
+  cam.dist += (wantD - cam.dist) * 0.10;
+  // 目标点跟随包围盒中心，但限幅，保证机箱始终在画面里
+  const cx = Math.max(-150, Math.min(150, bb.c[0]));
+  const cy = Math.max(-90,  Math.min(150, bb.c[1]));
+  const cz = Math.max(-130, Math.min(150, bb.c[2]));
+  cam.target[0] += (cx-cam.target[0])*0.10;
+  cam.target[1] += (cy-cam.target[1])*0.10;
+  cam.target[2] += (cz-cam.target[2])*0.10;
+
+  if(cam.want){
+    cam.theta += (cam.want.theta*Math.PI/180 - cam.theta)*0.12;
+    cam.phi   += (cam.want.phi*Math.PI/180 - cam.phi)*0.12;
+    if(Math.abs(cam.theta-cam.want.theta*Math.PI/180)<0.002) cam.want=null;
+  }
+
+  const eye = [
+    cam.target[0] + cam.dist*Math.cos(cam.phi)*Math.sin(cam.theta),
+    cam.target[1] + cam.dist*Math.sin(cam.phi),
+    cam.target[2] + cam.dist*Math.cos(cam.phi)*Math.cos(cam.theta)
+  ];
+
+  gl.clearColor(BG[0],BG[1],BG[2],1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  gl.disable(gl.CULL_FACE);
+
+  persp(mP, fov, canvas.width/canvas.height, 20, 12000);
+  mP[8] = -0.16;   // 画面右移，让出左侧标题栏
+  mP[9] = -0.11;   // 画面上移，让出底部零件条
+  look(mV, eye, cam.target, [0,1,0]);
+  mul(mVP, mP, mV);
+  lastVP = mVP;
+
+  const clip = state.cut ? [0,0,1,55] : [0,0,0,1e9];
+
+  // 地面接触阴影
+  drawShadow(bb, mVP);
+
+  gl.enable(gl.POLYGON_OFFSET_FILL);
+  gl.polygonOffset(1.4, 1.4);
+  const clock = now * 0.001;
+
+  for(const p of DRAW){
+    const q = m[p.id];
+    trans(mM, q.x, q.y, q.z);
+    mul(mMVP, mVP, mM);
+
+    let col = p.color, alpha = p.alpha || 1, hi = 0, acc = 0;
+    const isIso = state.iso && state.iso === p.id;
+    if(state.iso && !isIso){
+      col = [0.86,0.85,0.81];
+      alpha = 0.24 * (p.alpha || 1);
+    } else if(!state.iso && q.moving){
+      acc = 1;
+    }
+    if(isIso) col = [p.color[0]*0.72+0.85*0.28, p.color[1]*0.72+0.34*0.28, p.color[2]*0.72+0.16*0.28];
+    if(state.hover === p.id && !state.iso) hi = 1;
+    if(state.hover === p.id && isIso) hi = 0.6;
+
+    gl.useProgram(P_SOLID);
+    gl.uniformMatrix4fv(U.mvp,false,mMVP);
+    gl.uniformMatrix4fv(U.m,false,mM);
+    gl.uniform3fv(U.c, col);
+    gl.uniform1f(U.a, alpha);
+    gl.uniform4fv(U.clip, clip);
+    gl.uniform3fv(U.eye, eye);
+    gl.uniform1f(U.time, clock);
+    gl.uniform1f(U.hi, hi);
+    gl.uniform1f(U.acc, acc);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, p.g.vb);
+    gl.enableVertexAttribArray(ATTR.p);
+    gl.vertexAttribPointer(ATTR.p,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, p.g.nb);
+    gl.enableVertexAttribArray(ATTR.n);
+    gl.vertexAttribPointer(ATTR.n,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, p.g.mb);
+    gl.enableVertexAttribArray(ATTR.m);
+    gl.vertexAttribPointer(ATTR.m,1,gl.FLOAT,false,0,0);
+
+    if(alpha < 1){
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+    }
+    gl.drawArrays(gl.TRIANGLES, 0, p.g.count);
+    if(alpha < 1){ gl.depthMask(true); gl.disable(gl.BLEND); }
+  }
+
+  // 描边
+  gl.disable(gl.POLYGON_OFFSET_FILL);
+  gl.useProgram(P_LINE);
+  for(const p of PARTS){
+    if(!p.g.lb) continue;
+    const q = m[p.id];
+    trans(mM, q.x, q.y, q.z);
+    mul(mMVP, mVP, mM);
+    const dim = state.iso && state.iso !== p.id;
+    const hot = state.hover === p.id;
+    const mov = !state.iso && q.moving;
+    gl.uniformMatrix4fv(UL.mvp,false,mMVP);
+    gl.uniformMatrix4fv(UL.m,false,mM);
+    gl.uniform3fv(UL.c, dim ? [0.80,0.79,0.75]
+                     : hot ? [0.72,0.26,0.08]
+                     : mov ? [0.80,0.30,0.08]
+                     : [0.13,0.12,0.11]);
+    gl.uniform1f(UL.a, dim ? 0.28 : (hot || mov) ? 0.92 : 0.62);
+    gl.uniform4fv(UL.clip, clip);
+    gl.bindBuffer(gl.ARRAY_BUFFER, p.g.lb);
+    const aP = gl.getAttribLocation(P_LINE,"aP");
+    gl.enableVertexAttribArray(aP);
+    gl.vertexAttribPointer(aP,3,gl.FLOAT,false,0,0);
+    gl.drawArrays(gl.LINES, 0, p.g.lcount);
+  }
+
+  updateCallouts(m);
+}
+
+/* ============================================================
+   屏幕空间引线标注
+   ============================================================ */
+const callPool = [];
+let lastVP = null;
+
+function initCallouts(){
+  for(let i=0;i<4;i++){
+    const d = document.createElement("div");
+    d.className = "callout";
+    d.innerHTML = '<div class="ld"></div><div class="dot"></div><div class="lb"></div>';
+    $("#stage").appendChild(d);
+    callPool.push({el:d, ld:d.querySelector(".ld"), dot:d.querySelector(".dot"), lb:d.querySelector(".lb")});
+  }
+}
+
+function projectPt(p){
+  const v = lastVP; if(!v) return null;
+  const x = v[0]*p[0]+v[4]*p[1]+v[8]*p[2]+v[12];
+  const y = v[1]*p[0]+v[5]*p[1]+v[9]*p[2]+v[13];
+  const w = v[3]*p[0]+v[7]*p[1]+v[11]*p[2]+v[15];
+  if(w <= 0.001) return null;
+  return [ (x/w*0.5+0.5)*1120, (1-(y/w*0.5+0.5))*900 ];
+}
+
+function updateCallouts(m){
+  const list = [];
+  for(const p of PARTS){
+    if(p.fixed) continue;
+    const q = m[p.id];
+    if(q.prog > 0.03 && q.prog < 0.97) list.push({p, q});
+  }
+  list.sort((a,b)=> b.q.prog - a.q.prog);
+  let out = list.slice(0,2);
+  if(state.hover){
+    const hp = PARTS.find(x=>x.id===state.hover);
+    if(hp && !hp.fixed && !out.some(o=>o.p.id===hp.id)) out = [{p:hp, q:m[hp.id]}].concat(out).slice(0,3);
+  }
+
+  const used = [];
+  for(let i=0;i<callPool.length;i++){
+    const c = callPool[i], it = out[i];
+    if(!it){ c.el.classList.remove("on"); continue; }
+    const b = it.p.bb;
+    const wc = [it.q.x+(b[0]+b[3])/2, it.q.y+(b[1]+b[4])/2, it.q.z+(b[2]+b[5])/2];
+    const s = projectPt(wc);
+    if(!s || s[0]<40 || s[0]>1080 || s[1]<60 || s[1]>860){ c.el.classList.remove("on"); continue; }
+
+    const flip = s[0] > 620;
+    let lx = flip ? s[0]-126 : s[0]+126;
+    let ly = s[1]-34;
+    // 竖向避让：与已放置标签保持 30px
+    for(let k=0;k<8;k++){
+      const hit = used.some(u => Math.abs(u.ly-ly) < 30 && Math.abs(u.lx-lx) < 220);
+      if(!hit) break;
+      ly += 32;
+    }
+    used.push({lx, ly});
+
+    c.lb.textContent = it.p.name;
+    c.lb.style.transform = "translate("+lx+"px,"+ly+"px)" + (flip ? " translateX(-100%)" : "");
+
+    const ex = lx, ey = ly+10;
+    const dx = ex-s[0], dy = ey-s[1];
+    c.ld.style.width = Math.hypot(dx,dy) + "px";
+    c.ld.style.transform = "translate("+s[0]+"px,"+s[1]+"px) rotate("+Math.atan2(dy,dx)+"rad)";
+    c.dot.style.transform = "translate("+s[0]+"px,"+s[1]+"px) translate(-50%,-50%)";
+    c.el.classList.add("on");
+  }
+}
+
+/* 悬停拾取：屏幕坐标 → 射线 → 最近包围盒 */
+const _invM = mat4(), _ta = [0,0,0,0], _tb = [0,0,0,0];
+function unproject(inv, nx, ny, nz, out){
+  const v = [nx,ny,nz,1];
+  for(let r=0;r<4;r++) out[r] = inv[r]*v[0] + inv[4+r]*v[1] + inv[8+r]*v[2] + inv[12+r]*v[3];
+  const w = out[3] || 1;
+  return [out[0]/w, out[1]/w, out[2]/w];
+}
+function pick(mx, my){
+  if(!lastVP || !curM) return null;
+  const inv = invert(_invM, lastVP);
+  if(!inv) return null;
+  const nx = (mx/1120)*2-1, ny = 1-(my/900)*2;
+  const a = unproject(inv, nx, ny, -1, _ta);
+  const b = unproject(inv, nx, ny,  1, _tb);
+  let dx=b[0]-a[0], dy=b[1]-a[1], dz=b[2]-a[2];
+  const L = Math.hypot(dx,dy,dz) || 1;
+  const d = [dx/L, dy/L, dz/L];
+  let best = null, bestT = 1e9;
+  for(const p of PARTS){
+    if(p.fixed) continue;                    // 机箱包围盒罩住全部内部，不参与拾取
+    const q = curM[p.id]; if(!q) continue;
+    const bb = p.bb;
+    const t = rayBox(a, d, [q.x+bb[0], q.y+bb[1], q.z+bb[2]],
+                          [q.x+bb[3], q.y+bb[4], q.z+bb[5]]);
+    if(t !== null && t < bestT){ bestT = t; best = p.id; }
+  }
+  return best;
+}
+
+/* 地面软阴影：一枚压扁的暗色圆盘 */
+let shadowBuf = null;
+function drawShadow(bb, vp){
+  if(!shadowBuf){
+    const b = new Buf();
+    const S = 22;
+    for(let k=0;k<S;k++){
+      const a0=k/S*Math.PI*2, a1=(k+1)/S*Math.PI*2;
+      b.tri([0,0,0],[Math.cos(a0),0,Math.sin(a0)],[Math.cos(a1),0,Math.sin(a1)],[0,1,0]);
+    }
+    shadowBuf = upload(b);
+  }
+  const y = bb.y0 - 6;
+  trans(mM, bb.c[0], y, bb.c[2]);
+  const r = Math.max(300, bb.r*0.72);
+  mM[0]=r; mM[10]=r;
+  mul(mMVP, vp, mM);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+  gl.useProgram(P_LINE);
+  gl.uniformMatrix4fv(UL.mvp,false,mMVP);
+  gl.uniformMatrix4fv(UL.m,false,mM);
+  gl.uniform3fv(UL.c,[0.55,0.53,0.48]);
+  gl.uniform1f(UL.a,0.16);
+  gl.uniform4fv(UL.clip,[0,0,0,1e9]);
+  gl.bindBuffer(gl.ARRAY_BUFFER, shadowBuf.vb);
+  const aP = gl.getAttribLocation(P_LINE,"aP");
+  gl.enableVertexAttribArray(aP);
+  gl.vertexAttribPointer(aP,3,gl.FLOAT,false,0,0);
+  gl.drawArrays(gl.TRIANGLES,0,shadowBuf.count);
+  gl.depthMask(true);
+  gl.disable(gl.BLEND);
+}
+
+/* ============================================================
+   读数面板
+   ============================================================ */
+const MOV = PARTS.filter(p=>!p.fixed);
+
+function readouts(m, t){
+  const pr = p => phase(t, p.a + p.jit, p.b + p.jit);
+  const nDone = MOV.filter(p=>pr(p) >= 0.999).length;
+  const cur = MOV.filter(p=>pr(p)>0.001 && pr(p)<0.999)[0];
+  const vol = (MM.inW*MM.inH*MM.inD)/1e6;
+  const gpuGap = 190 - (-120 + MM.gpuL);
+  const coolGap = IN_X - (PCB_FRONT + MM.coolerH);
+  const boardArea = MM.boardH*MM.boardW/100;
+
+  return {
+    nDone, cur: cur ? cur.name : (t<0.001 ? "整机装配状态" : "拆解完成"),
+    vol: vol.toFixed(2),
+    boardArea: boardArea.toFixed(1),
+    gpuGap, coolGap: coolGap.toFixed(1),
+    camDist: cam.dist.toFixed(0),
+    parts: MOV.length
+  };
+}
+
+function updateUI(){
+  const m = curM; if(!m) return;
+  const t = state.t;
+  const r = readouts(m, t);
+
+  $("#bigt").innerHTML = Math.round(t*100) + "<span>%</span>";
+  $("#phase").innerHTML = "已拆 <b>"+r.nDone+"</b> / "+r.parts+" 个零件 · "+r.cur;
+
+  const rows = [
+    ["拆解进度 t", t.toFixed(3), ""],
+    ["已拆零件", r.nDone+" / "+r.parts, r.nDone===r.parts?"good":""],
+    ["机箱内部容积", r.vol+" L", ""],
+    ["主板占位面积", r.boardArea+" cm²", ""],
+    ["显卡长度", MM.gpuL+" mm", ""],
+    ["显卡前端余量", r.gpuGap+" mm", r.gpuGap<5?"warn":"good"],
+    ["散热器高度", MM.coolerH+" mm", ""],
+    ["散热器侧板余量", r.coolGap+" mm", "good"],
+    ["相机距离", r.camDist+" mm", ""]
+  ];
+  $("#readout").innerHTML = rows.map(([k,v,c])=>
+    '<div class="row"><span>'+k+'</span><b class="'+c+'">'+v+'</b></div>').join("");
+
+  // 按钮状态
+  document.querySelectorAll(".pbtn").forEach(el=>{
+    const id = el.dataset.id;
+    const p = PARTS.find(q=>q.id===id);
+    const pr = phase(t, p.a + p.jit, p.b + p.jit);
+    el.classList.toggle("done", pr>=0.999);
+    el.classList.toggle("on", state.iso===id);
+    el.classList.toggle("hot", state.hover===id && state.iso!==id);
+  });
+}
+
+/* 核对表 —— 每一项都在运行时算，不是写死的字符串 */
+function buildChecks(){
+  const f = (v,n=3)=>v.toFixed(n);
+  const C = [
+    {n:'ATX 主板 305', e:'305 / 25.4', v:f(305/25.4)+' in', k:'ok', note:'= 12 in'},
+    {n:'ATX 主板 244', e:'244 / 25.4', v:f(244/25.4)+' in', k:'ok', note:'= 9.6 in'},
+    {n:'3.5" 硬盘 146.99', e:'146.99 / 25.4', v:f(146.99/25.4)+' in', k:'ok', note:'= 5.787 in'},
+    {n:'3.5" 硬盘 101.6', e:'101.6 / 25.4', v:f(101.6/25.4)+' in', k:'ok', note:'= 4 in'},
+    {n:'2.5" SSD 69.85', e:'69.85 / 25.4', v:f(69.85/25.4)+' in', k:'ok', note:'= 2.75 in'},
+    {n:'内存条 133.35', e:'133.35 / 25.4', v:f(133.35/25.4)+' in', k:'ok', note:'= 5.25 in'},
+    {n:'M.2 2280', e:'22 × 80', v:'2280', k:'ok', note:'型号即尺寸'},
+    {n:'机箱内部容积', e:'200×440×430', v:((MM.inW*MM.inH*MM.inD)/1e6).toFixed(2)+' L', k:'ok'},
+    {n:'显卡前端余量', e:'190 − 180', v:(190-(-120+MM.gpuL))+' mm', k:'ok', note:'风扇面 − 卡尖'},
+    {n:'散热器侧板余量', e:'100 − 69.7', v:(IN_X-(PCB_FRONT+MM.coolerH)).toFixed(1)+' mm', k:'ok'},
+    {n:'120 风扇孔距', e:'(120−105)/2', v:'7.5 mm 边距', k:'as', note:'105 为通行值，非公开标准文本'},
+    {n:'ATX 安装孔', e:'9 孔 · Ø6.35 · 柱高 6.5', v:'行业惯例', k:'as', note:'ATX 规范未逐项强制'},
+    {n:'机箱外形', e:'210 × 450 × 470', v:'中塔假设', k:'as', note:'原清单未给机箱尺寸'},
+    {n:'显卡 300×120×50', e:'三风扇卡', v:'代表值', k:'as'},
+    {n:'散热器 158 mm', e:'塔式风冷', v:'代表值', k:'as'}
+  ];
+  $("#checks").innerHTML = C.map(c=>{
+    const tag = c.k==='ok' ? '<em>'+c.v+'</em>' : '<u>'+c.v+'</u>';
+    const mark = c.k==='ok' ? '' : '<span class="as">△</span>';
+    return '<div class="chk">'+mark+'<s>'+c.n+'</s> · '+c.e+' = '+tag+
+      (c.note?' <s>'+c.note+'</s>':'')+'</div>';
+  }).join("");
+}
+
+/* ============================================================
+   UI 构建
+   ============================================================ */
+function buildDock(){
+  const A = $("#grpA"), B = $("#grpB");
+  MOV.forEach((p,i)=>{
+    const el = document.createElement("button");
+    el.className = "pbtn";
+    el.dataset.id = p.id;
+    el.innerHTML = '<i class="dot"></i>'+p.name;
+    el.onclick = ()=>{ userAct(); state.iso = state.iso===p.id ? null : p.id; };
+    (i<8?A:B).appendChild(el);
+  });
+}
+
+function setView(k){
+  const v = VIEWS[k]; if(!v) return;
+  cam.want = {theta:v.theta, phi:v.phi};
+  document.querySelectorAll("#views [data-v]").forEach(b=>
+    b.classList.toggle("on", b.dataset.v===k));
+}
+
+document.querySelectorAll("#views [data-v]").forEach(b=>{
+  b.onclick = ()=>{ userAct(); setView(b.dataset.v); };
+});
+$("#bCut").onclick = e=>{
+  userAct(); state.cut = !state.cut;
+  e.target.textContent = "剖切 · " + (state.cut?"开":"关");
+  e.target.classList.toggle("on", state.cut);
+};
+$("#bTour").onclick = e=>{
+  userAct(); state.tour = !state.tour;
+  e.target.textContent = "巡演 · " + (state.tour?"开":"关");
+  e.target.classList.toggle("on", state.tour);
+  if(state.tour) startTour();
+};
+$("#ts").oninput = e=>{ userAct(); state.t = e.target.value/1000; };
+
+/* 交互即接管 */
+function userAct(){
+  state.lastInput = performance.now();
+  state.gen++;
+  $("#cursor").classList.remove("on");
+}
+
+let dragging=false, lx=0, ly=0, px0=0, py0=0, moved=0;
+canvas.addEventListener("pointerdown", e=>{
+  dragging=true; lx=e.clientX; ly=e.clientY;
+  px0=e.clientX; py0=e.clientY; moved=0;
+  canvas.classList.add("drag"); userAct();
+});
+addEventListener("pointerup", ()=>{
+  if(dragging && moved < 4 && state.hover){
+    state.iso = state.iso === state.hover ? null : state.hover;
+  }
+  dragging=false; canvas.classList.remove("drag");
+});
+addEventListener("pointermove", e=>{
+  if(dragging){
+    moved = Math.max(moved, Math.hypot(e.clientX-px0, e.clientY-py0));
+    cam.theta -= (e.clientX-lx)*0.007;
+    cam.phi = Math.max(-1.2, Math.min(1.35, cam.phi + (e.clientY-ly)*0.006));
+    lx=e.clientX; ly=e.clientY; cam.want=null;
+    return;
+  }
+  // 悬停拾取
+  const r = canvas.getBoundingClientRect();
+  if(e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom){
+    if(state.hover){ state.hover=null; }
+    return;
+  }
+  const mx = (e.clientX-r.left)/(r.width/1120);
+  const my = (e.clientY-r.top)/(r.height/900);
+  const id = pick(mx, my);
+  state.hover = id || null;
+  canvas.style.cursor = state.hover ? "pointer" : "grab";
+});
+canvas.addEventListener("pointerleave", ()=>{ state.hover = null; });
+canvas.addEventListener("wheel", e=>{
+  e.preventDefault(); userAct();
+  cam.zoom *= (1 + Math.sign(e.deltaY)*0.08);
+  cam.zoom = Math.max(0.45, Math.min(2.6, cam.zoom));
+},{passive:false});
+
+addEventListener("keydown", e=>{
+  if(e.key==="ArrowRight"){ userAct(); state.t = clamp01(state.t+0.02); $("#ts").value = state.t*1000; }
+  if(e.key==="ArrowLeft"){ userAct(); state.t = clamp01(state.t-0.02); $("#ts").value = state.t*1000; }
+  if(e.key===" "){ e.preventDefault(); $("#bTour").click(); }
+});
+
+/* ============================================================
+   巡演：光标自己走去按按钮
+   ============================================================ */
+function centerOf(el){
+  const r = el.getBoundingClientRect(), s = $("#stage").getBoundingClientRect();
+  const k = s.width/1600;
+  return [ (r.left-s.left)/k + r.width/k/2, (r.top-s.top)/k + r.height/k/2 ];
+}
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+
+async function runTour(){
+  const gen = ++state.gen;
+  const cur = $("#cursor");
+  const steps = [
+    {t:0.00, v:"hero",  hold:2600},
+    {t:0.16, v:"hero",  hold:2400, sel:"front"},
+    {t:0.34, v:"side",  hold:2400},
+    {t:0.52, v:"side",  hold:2600, sel:"cooler"},
+    {t:0.72, v:"front", hold:2400, sel:"gpu"},
+    {t:0.94, v:"hero",  hold:3000},
+    {t:1.00, v:"top",   hold:2600}
+  ];
+  for(const s of steps){
+    if(gen!==state.gen) return;
+    state.t = s.t; $("#ts").value = s.t*1000;
+    state.iso = s.sel || null;
+    setView(s.v);
+
+    const target = s.sel
+      ? document.querySelector('.pbtn[data-id="'+s.sel+'"]')
+      : document.querySelector('#views [data-v="'+s.v+'"]');
+    if(target){
+      const [x,y] = centerOf(target);
+      cur.style.transform = "translate("+(x-3)+"px,"+(y-2)+"px)";
+      cur.classList.add("on");
+      await wait(620);
+      if(gen!==state.gen) return;
+      const rp = $("#ripple");
+      rp.style.left = x+"px"; rp.style.top = y+"px";
+      rp.classList.remove("go"); void rp.offsetWidth; rp.classList.add("go");
+    }
+    await wait(s.hold);
+    if(gen!==state.gen) return;
+  }
+  cur.classList.remove("on");
+}
+
+function startTour(){
+  if(!state.tour) return;
+  state.gen++;
+  runTour();
+}
+
+/* ============================================================
+   主循环
+   ============================================================ */
+let frameN = 0;
+function loop(now){
+  drawFrame(now);
+  if(frameN++ % 4 === 0) updateUI();
+  // 25 秒静默 → 交回巡演
+  if(state.tour && now - state.lastInput > 25000 && !$("#cursor").classList.contains("on")){
+    state.lastInput = now;
+    startTour();
+  }
+  requestAnimationFrame(loop);
+}
+
+buildDock();
+buildChecks();
+initCallouts();
+resize();
+requestAnimationFrame(loop);
+setTimeout(()=>{ if(state.tour) startTour(); }, 900);
+</script>
+</body>
+</html>

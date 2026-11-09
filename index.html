@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Projects · 我的小项目</title>
-<meta name="description" content="一些自娱自乐的可交互小项目集合。">
+<meta name="description" content="一些自娱自乐的可交互小项目集合，按类别整理。">
 <script>
   // 尽早决定主题，避免首屏闪白
   (function () {
@@ -49,10 +49,10 @@
 
   * { box-sizing: border-box; }
 
-  /* 保证 hidden 能盖过 .grid 的 display:grid */
+  /* 保证 hidden 能盖过 .flow 的 display */
   [hidden] { display: none !important; }
 
-  html { -webkit-text-size-adjust: 100%; }
+  html { -webkit-text-size-adjust: 100%; scroll-padding-top: 20px; }
 
   body {
     margin: 0;
@@ -70,7 +70,7 @@
   .wrap { max-width: 1080px; margin: 0 auto; }
 
   /* ---------- 头部 ---------- */
-  header { padding: 64px 0 28px; }
+  header { padding: 60px 0 4px; }
 
   .head-row {
     display: flex;
@@ -89,15 +89,9 @@
 
   h1 .dot { color: var(--accent); }
 
-  .sub {
-    margin: 8px 0 0;
-    color: var(--muted);
-    font-size: 14px;
-  }
-
+  .sub { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
   .sub b { color: var(--text); font-weight: 600; }
 
-  /* ---------- 主题按钮 ---------- */
   .theme-btn {
     flex: none;
     width: 36px;
@@ -119,12 +113,9 @@
   :root[data-theme="dark"] .icon-sun { display: none; }
 
   /* ---------- 搜索 ---------- */
-  .search {
-    position: relative;
-    margin-top: 26px;
-  }
+  .search { position: relative; margin-top: 24px; }
 
-  .search svg {
+  .search > svg {
     position: absolute;
     left: 14px;
     top: 50%;
@@ -149,12 +140,7 @@
   }
 
   #q::placeholder { color: var(--faint); }
-
-  #q:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
-  }
-
+  #q:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   #q:focus ~ kbd { opacity: 0; }
 
   kbd {
@@ -174,20 +160,131 @@
     transition: opacity .18s;
   }
 
-  /* ---------- 卡片网格 ---------- */
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
-    gap: 14px;
-    margin-top: 26px;
+  /* ---------- 分类区块 ---------- */
+  .cat { margin-top: 40px; }
+
+  .cat-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 12px;
   }
 
+  .cat-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 650;
+    letter-spacing: -.01em;
+    color: var(--text);
+  }
+
+  .cat-count {
+    font-size: 11.5px;
+    line-height: 1;
+    padding: 4px 7px;
+    color: var(--muted);
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .spacer { flex: 1; }
+
+  .more {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px 6px 12px;
+    font: inherit;
+    font-size: 12.5px;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: color .18s, border-color .18s, background .18s;
+  }
+
+  .more:hover {
+    color: var(--text);
+    border-color: var(--border-hover);
+    background: var(--card);
+  }
+
+  .more:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .more svg {
+    width: 13px;
+    height: 13px;
+    transition: transform .25s cubic-bezier(.2,.7,.3,1);
+  }
+
+  .more[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+  /* ---------- 水平瀑布流 ---------- */
+  .rail { position: relative; }
+
+  /* 右侧渐隐，暗示还能往右滑 */
+  .rail::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 14px;
+    right: -2px;
+    width: 64px;
+    background: linear-gradient(to right, rgba(0, 0, 0, 0), var(--bg) 88%);
+    pointer-events: none;
+    transition: opacity .25s ease;
+  }
+
+  .rail.open::after,
+  .rail.no-fade::after,
+  .rail.at-end::after { opacity: 0; }
+
+  .flow {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 2px 14px;
+    margin: 0 -2px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-hover) transparent;
+  }
+
+  .flow::-webkit-scrollbar { height: 8px; }
+  .flow::-webkit-scrollbar-track { background: transparent; }
+  .flow::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+  .flow::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+  .flow > .card {
+    flex: 0 0 272px;
+    scroll-snap-align: start;
+  }
+
+  /* 交错下移，形成瀑布的错落感（仅折叠态） */
+  .flow:not(.is-open) > .card:nth-child(2n) { margin-top: 16px; }
+
+  /* 展开：平铺网格，向下铺开 */
+  .flow.is-open {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(236px, 1fr));
+    overflow: visible;
+    align-items: stretch;
+  }
+
+  .flow.is-open > .card { flex: none; margin-top: 0; }
+
+  /* ---------- 卡片 ---------- */
   .card {
     position: relative;
     display: flex;
     flex-direction: column;
-    min-height: 132px;
-    padding: 18px 18px 15px;
+    min-height: 128px;
+    padding: 16px 17px 14px;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -196,12 +293,6 @@
     box-shadow: var(--shadow);
     transition: transform .2s cubic-bezier(.2,.7,.3,1), box-shadow .2s,
                 border-color .2s, background-color .25s;
-    animation: rise .32s cubic-bezier(.2,.7,.3,1) both;
-  }
-
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(6px); }
-    to   { opacity: 1; transform: none; }
   }
 
   .card:hover {
@@ -210,23 +301,20 @@
     box-shadow: var(--shadow-hover);
   }
 
-  .card:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 3px;
-  }
+  .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
   .card-title {
-    font-size: 15.5px;
+    font-size: 15px;
     font-weight: 600;
     line-height: 1.45;
     letter-spacing: -.01em;
-    padding-right: 22px;
+    padding-right: 20px;
   }
 
   .card-desc {
-    margin: 7px 0 0;
-    font-size: 13px;
-    line-height: 1.62;
+    margin: 6px 0 0;
+    font-size: 12.8px;
+    line-height: 1.6;
     color: var(--muted);
     display: -webkit-box;
     -webkit-line-clamp: 3;
@@ -236,7 +324,7 @@
 
   .card-foot {
     margin-top: auto;
-    padding-top: 14px;
+    padding-top: 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -245,30 +333,28 @@
 
   .slug {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--faint);
-    letter-spacing: .01em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .arrow {
-    flex: none;
-    color: var(--faint);
-    transition: color .2s, transform .2s;
-  }
-
+  .arrow { flex: none; color: var(--faint); transition: color .2s, transform .2s; }
   .arrow svg { width: 14px; height: 14px; display: block; }
+  .card:hover .arrow { color: var(--accent); transform: translate(2px, -2px); }
 
-  .card:hover .arrow {
-    color: var(--accent);
-    transform: translate(2px, -2px);
+  /* 展开时新出现的卡片淡入 */
+  .card.reveal { animation: reveal .3s cubic-bezier(.2,.7,.3,1) both; }
+
+  @keyframes reveal {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: none; }
   }
 
   /* ---------- 状态块 ---------- */
   .state {
-    margin-top: 26px;
+    margin-top: 40px;
     padding: 40px 20px;
     text-align: center;
     color: var(--muted);
@@ -290,7 +376,7 @@
   }
 
   footer {
-    margin-top: 44px;
+    margin-top: 52px;
     padding-top: 18px;
     border-top: 1px solid var(--border);
     color: var(--faint);
@@ -301,13 +387,14 @@
     justify-content: space-between;
   }
 
-  footer a { color: var(--muted); }
-
   @media (max-width: 560px) {
     body { padding: 0 16px 56px; }
-    header { padding: 40px 0 22px; }
+    header { padding: 40px 0 4px; }
     h1 { font-size: 25px; }
-    .grid { grid-template-columns: 1fr; }
+    .cat { margin-top: 32px; }
+    .flow > .card { flex-basis: 78vw; }
+    .flow.is-open { grid-template-columns: 1fr; }
+    .rail::after { width: 36px; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -321,7 +408,7 @@
     <div class="head-row">
       <div>
         <h1>Projects<span class="dot">.</span></h1>
-        <p class="sub"><b id="count">—</b> 个项目 · 都是点开就能玩的东西</p>
+        <p class="sub"><b id="count">—</b> 个项目 · <b id="catCount">—</b> 个分类 · 都是点开就能玩的东西</p>
       </div>
       <button class="theme-btn" id="themeBtn" type="button" aria-label="切换深色 / 浅色模式">
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -347,7 +434,7 @@
     </div>
   </header>
 
-  <main class="grid" id="grid" aria-live="polite"></main>
+  <main id="cats"></main>
   <div class="state" id="state" hidden></div>
 
   <footer>
@@ -359,12 +446,19 @@
 <script>
 (function () {
   var root = document.documentElement;
-  var grid = document.getElementById('grid');
+  var cats = document.getElementById('cats');
   var stateBox = document.getElementById('state');
   var q = document.getElementById('q');
   var countEl = document.getElementById('count');
+  var catCountEl = document.getElementById('catCount');
   var filteredEl = document.getElementById('filtered');
   var btn = document.getElementById('themeBtn');
+
+  // 折叠时每个分类横向露出的卡片数，超过这个数量才出现“更多”
+  var LIMIT = 3;
+
+  // 分类的排列顺序；没列到的分类（以后新加的）自动排在后面
+  var ORDER = ['三维场景', '沙盘与微缩', '机械结构', '物理实验', '交互与可视化'];
 
   /* ---------- 主题 ---------- */
   btn.addEventListener('click', function () {
@@ -373,7 +467,6 @@
     try { localStorage.setItem('theme', next); } catch (e) {}
   });
 
-  // 用户没手动选过时，跟随系统变化
   try {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
       var saved = null;
@@ -382,89 +475,192 @@
     });
   } catch (e) {}
 
-  /* ---------- 渲染 ---------- */
+  /* ---------- 数据 ---------- */
   var projects = [];
+  var openCats = {};   // 记住每个分类是否展开
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function linkFor(p) {
+    return './' + encodeURI(String(p.path || 'projects/' + p.name).replace(/^\/+/, '')) + '/';
+  }
+
+  function groupBy(list) {
+    var map = {};
+    var order = [];
+    list.forEach(function (p) {
+      var c = p.category || '其他';
+      if (!map[c]) { map[c] = []; order.push(c); }
+      map[c].push(p);
+    });
+    order.sort(function (a, b) {
+      var ia = ORDER.indexOf(a);
+      var ib = ORDER.indexOf(b);
+      if (ia === -1 && ib === -1) return a < b ? -1 : 1;
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+    return order.map(function (c) { return { name: c, items: map[c] }; });
+  }
+
+  function makeCard(p) {
+    var a = document.createElement('a');
+    a.className = 'card';
+    a.href = linkFor(p);
+
+    var t = document.createElement('div');
+    t.className = 'card-title';
+    t.textContent = p.title || p.name;
+    a.appendChild(t);
+
+    if (p.desc) {
+      var d = document.createElement('p');
+      d.className = 'card-desc';
+      d.textContent = p.desc;
+      a.appendChild(d);
+    }
+
+    var foot = document.createElement('div');
+    foot.className = 'card-foot';
+
+    var slug = document.createElement('span');
+    slug.className = 'slug';
+    slug.textContent = p.name;
+    foot.appendChild(slug);
+
+    var arrow = document.createElement('span');
+    arrow.className = 'arrow';
+    arrow.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
+      + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<path d="M7 17L17 7M9 7h8v8"/></svg>';
+    foot.appendChild(arrow);
+    a.appendChild(foot);
+
+    return a;
+  }
 
   function showState(html) {
     stateBox.innerHTML = html;
     stateBox.hidden = false;
   }
 
-  function linkFor(p) {
-    // 相对路径，不依赖仓库名 / 域名
-    return './' + encodeURI(String(p.path || 'projects/' + p.name).replace(/^\/+/, '')) + '/';
-  }
+  function render() {
+    var kw = q.value.trim().toLowerCase();
+    var searching = !!kw;
 
-  function render(list) {
+    var list = searching
+      ? projects.filter(function (p) {
+          return [p.title, p.name, p.desc, p.category].join(' ').toLowerCase().indexOf(kw) !== -1;
+        })
+      : projects;
+
     if (!list.length) {
-      grid.innerHTML = '';
-      grid.hidden = true;
-      if (projects.length) {
-        showState('没有匹配 “' + escapeHtml(q.value.trim()) + '” 的项目。');
-      }
+      cats.innerHTML = '';
+      cats.hidden = true;
+      showState('没有匹配 “' + escapeHtml(q.value.trim()) + '” 的项目。');
+      filteredEl.textContent = '0 / ' + projects.length;
       return;
     }
 
-    grid.hidden = false;
+    cats.hidden = false;
     stateBox.hidden = true;
-    grid.innerHTML = '';
+    cats.innerHTML = '';
 
-    list.forEach(function (p, i) {
-      var a = document.createElement('a');
-      a.className = 'card';
-      a.href = linkFor(p);
-      a.style.animationDelay = Math.min(i, 12) * 22 + 'ms';
+    groupBy(list).forEach(function (g) {
+      // 搜索时强制全部展开，保证结果都看得见
+      var isOpen = searching || !!openCats[g.name];
 
-      var title = document.createElement('div');
-      title.className = 'card-title';
-      title.textContent = p.title || p.name;
+      var section = document.createElement('section');
+      section.className = 'cat';
 
-      a.appendChild(title);
+      var head = document.createElement('div');
+      head.className = 'cat-head';
 
-      if (p.desc) {
-        var d = document.createElement('p');
-        d.className = 'card-desc';
-        d.textContent = p.desc;
-        a.appendChild(d);
+      var h2 = document.createElement('h2');
+      h2.textContent = g.name;
+      head.appendChild(h2);
+
+      var cnt = document.createElement('span');
+      cnt.className = 'cat-count';
+      cnt.textContent = g.items.length;
+      head.appendChild(cnt);
+
+      var sp = document.createElement('span');
+      sp.className = 'spacer';
+      head.appendChild(sp);
+
+      if (g.items.length > LIMIT && !searching) {
+        var more = document.createElement('button');
+        more.type = 'button';
+        more.className = 'more';
+        more.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        more.innerHTML = (isOpen ? '收起' : '更多')
+          + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
+          + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+          + '<path d="M6 9l6 6 6-6"/></svg>';
+
+        more.addEventListener('click', function () {
+          openCats[g.name] = !openCats[g.name];
+          render();
+        });
+
+        head.appendChild(more);
       }
 
-      var foot = document.createElement('div');
-      foot.className = 'card-foot';
+      section.appendChild(head);
 
-      var slug = document.createElement('span');
-      slug.className = 'slug';
-      slug.textContent = p.name;
-      foot.appendChild(slug);
+      var rail = document.createElement('div');
+      rail.className = 'rail' + (isOpen ? ' open' : '');
 
-      var arrow = document.createElement('span');
-      arrow.className = 'arrow';
-      arrow.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"'
-        + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-        + '<path d="M7 17L17 7M9 7h8v8"/></svg>';
-      foot.appendChild(arrow);
+      var flow = document.createElement('div');
+      flow.className = 'flow' + (isOpen ? ' is-open' : '');
 
-      a.appendChild(foot);
-      grid.appendChild(a);
+      g.items.forEach(function (p, i) {
+        var card = makeCard(p);
+        // 展开时给后面的卡片加淡入；折叠时不做隐藏，让多余的卡片在右侧露出一截，暗示可以横向滑
+        if (i >= LIMIT && isOpen) card.className += ' reveal';
+        flow.appendChild(card);
+      });
+
+      rail.appendChild(flow);
+      section.appendChild(rail);
+      cats.appendChild(section);
     });
 
-    filteredEl.textContent = q.value.trim() ? '筛选出 ' + list.length + ' / ' + projects.length : '';
+    syncRails();
+    filteredEl.textContent = searching ? '筛选出 ' + list.length + ' / ' + projects.length : '';
   }
 
-  function escapeHtml(s) {
-    return s.replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  /* 只有真的溢出时才显示右侧渐隐 */
+  function syncRails() {
+    Array.prototype.forEach.call(cats.querySelectorAll('.flow'), function (flow) {
+      var rail = flow.parentNode;
+      var overflow = flow.scrollWidth - flow.clientWidth > 8;
+      rail.classList.toggle('no-fade', !overflow);
+      rail.classList.toggle(
+        'at-end',
+        overflow && flow.scrollLeft + flow.clientWidth >= flow.scrollWidth - 8
+      );
+
+      if (!flow.dataset.bound) {
+        flow.dataset.bound = '1';
+        flow.addEventListener('scroll', function () {
+          var ov = flow.scrollWidth - flow.clientWidth > 8;
+          rail.classList.toggle(
+            'at-end',
+            ov && flow.scrollLeft + flow.clientWidth >= flow.scrollWidth - 8
+          );
+        }, { passive: true });
+      }
     });
   }
 
-  function applyFilter() {
-    var kw = q.value.trim().toLowerCase();
-    if (!kw) return render(projects);
-    render(projects.filter(function (p) {
-      return [p.title, p.name, p.desc].join(' ').toLowerCase().indexOf(kw) !== -1;
-    }));
-  }
-
-  /* ---------- 载入数据 ---------- */
+  /* ---------- 载入 ---------- */
   fetch('projects.json', { cache: 'no-store' })
     .then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -474,17 +670,22 @@
       projects = (Array.isArray(data) ? data : data.projects || []).filter(function (p) {
         return p && (p.path || p.name);
       });
+
       countEl.textContent = projects.length;
+      catCountEl.textContent = groupBy(projects).length;
+
       if (!projects.length) {
-        grid.hidden = true;
+        cats.hidden = true;
         showState('还没有项目。在源目录里放点东西，然后运行 <code>node sync.mjs</code>。');
         return;
       }
-      applyFilter();
+
+      render();
     })
     .catch(function (err) {
       countEl.textContent = '0';
-      grid.hidden = true;
+      catCountEl.textContent = '0';
+      cats.hidden = true;
       showState(
         '<strong>读取 projects.json 失败</strong><br>' +
         '如果是在本地直接双击打开这个文件，浏览器会拦截本地文件请求。<br>' +
@@ -494,7 +695,17 @@
     });
 
   /* ---------- 快捷键 ---------- */
-  q.addEventListener('input', applyFilter);
+  var timer;
+  q.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(render, 90);
+  });
+
+  var rt;
+  window.addEventListener('resize', function () {
+    clearTimeout(rt);
+    rt = setTimeout(syncRails, 120);
+  });
 
   document.addEventListener('keydown', function (e) {
     var tag = (e.target.tagName || '').toLowerCase();
@@ -506,7 +717,7 @@
       q.select();
     } else if (e.key === 'Escape' && document.activeElement === q) {
       q.value = '';
-      applyFilter();
+      render();
       q.blur();
     }
   });

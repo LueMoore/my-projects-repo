@@ -75,6 +75,24 @@ const IGNORED = new Set([
 const HTML_EXT = new Set(['.html', '.htm']);
 const ILLEGAL = /[\\/:*?"<>|\u0000-\u001f]/g;
 
+// 新项目首次入库时按关键词猜分类；projects.json 里已有 category 的不会被覆盖，手改优先
+const DEFAULT_CATEGORY = '其他';
+const CATEGORY_RULES = [
+  ['沙盘与微缩', /沙盘|微缩|diorama|sandbox|voxel|体素|zhengzhou|郑州|沙盒/i],
+  ['物理实验', /光速|相对论|relativity|light-?speed|物理|干涉|衍射|量子|重力|lorentz|洛伦兹/i],
+  ['机械结构', /拆解|装配|atx|机箱|机械|机构|拉杆|lever|plotter|绘图机|凸轮|丝杠|齿轮|离合/i],
+  ['三维场景', /场景|都市|city|beach|海岸|黄昏|dusk|街角|小屋|shop|lake|湖|天空|渲染/i],
+  ['交互与可视化', /排序|sort|算法|钢琴|piano|音乐|midi|方块|tetris|公式|图表|chart|可视|计算器/i],
+];
+
+function guessCategory(...texts) {
+  const hay = texts.filter(Boolean).join(' ');
+  for (const [name, re] of CATEGORY_RULES) {
+    if (re.test(hay)) return name;
+  }
+  return DEFAULT_CATEGORY;
+}
+
 function sanitizeName(raw) {
   let n = raw.replace(ILLEGAL, '-').replace(/^[.\s]+/, '').replace(/[.\s]+$/, '').trim();
   if (!n) n = 'project';
@@ -227,17 +245,20 @@ function main() {
       : readMeta(path.join(destDir, 'index.html'));
 
     const prev = prevByName.get(name);
-    // 保留手工写的 desc/title（除非 --refresh-meta），未知自定义字段也保留
+    // 保留手工写的 desc/title/category，未知自定义字段也保留
     const entry = { ...(prev || {}) };
     entry.name = name;
     entry.title = REFRESH_META || !prev?.title ? meta.title || prev?.title || name : prev.title;
     entry.desc = REFRESH_META || !prev?.desc ? meta.desc || prev?.desc || '' : prev.desc;
+    entry.category = prev?.category || guessCategory(name, entry.title, entry.desc);
     entry.path = relPath;
 
     nextEntries.push(entry);
     if (existed) updated++;
     else copied++;
-    console.log(`   ${existed ? '♻️  更新' : '➕ 新增'}  projects/${name}`);
+    console.log(
+      `   ${existed ? '♻️  更新' : '➕ 新增'}  projects/${name}  →  ${entry.category}`
+    );
   }
 
   // 排序：按 name 码点稳定排序（ASCII 在前、中文在后），避免每次 diff 抖动
@@ -289,6 +310,9 @@ function main() {
 
   console.log('');
   console.log(`✅ 完成：新增 ${copied} 个，更新 ${updated} 个，移除 ${orphans.length} 个，共 ${nextEntries.length} 个项目`);
+  const byCat = new Map();
+  for (const e of nextEntries) byCat.set(e.category, (byCat.get(e.category) || 0) + 1);
+  console.log('   分类：' + [...byCat].map(([c, n]) => `${c} ${n}`).join(' · '));
   console.log(`   索引：projects.json`);
   console.log(`   提交：git add -A && git commit -m "sync projects" && git push`);
 }
